@@ -15,24 +15,22 @@ load_dotenv()
 
 class ContentGenerator:
     CAPTION_PROMPT = (
-        "You are an Instagram content creator for an AI & Tech niche page "
-        "with 100k+ followers. Write an engaging Instagram caption for this "
-        "news article. Rules: Start with a powerful hook sentence (make people "
-        "stop scrolling). Use 3-5 short punchy sentences. Be conversational, "
-        "not corporate. End with a CTA. Do NOT include any hashtags — they "
-        "will be added separately. Keep total under 200 words."
+        "You are an Instagram content creator for a developer-focused AI niche page "
+        "with 100k+ followers. Write a high-value Instagram caption for this "
+        "software engineering news article. Rules: Start with a powerful hook "
+        "(mentioning coding agents, LLMs, or dev tools). Write exactly 6-7 short "
+        "punchy sentences explained from a developer's perspective — make each "
+        "sentence its own standalone insight. Be conversational and insightful. "
+        "End with a CTA (e.g., 'Would you use this in your workflow?'). "
+        "Do NOT include any hashtags. Keep total under 220 words."
     )
 
     HASHTAG_PROMPT = (
-        "You are a viral Instagram growth expert specialising in AI & Tech. "
-        "Generate exactly 30 Instagram hashtags for the article below. "
-        "Rules: "
-        "(1) Mix high-volume tags (1M+ posts) with niche topic-specific tags (10k–500k posts). "
-        "(2) Include tags trending RIGHT NOW for this specific topic (not generic tech tags only). "
-        "(3) Cover all angles: technology name, use-case, industry impact, community tags, viral tags. "
-        "(4) Output ONLY the hashtags on a single line separated by spaces, starting with #. "
-        "(5) Do NOT include explanations, numbering, or line breaks between tags. "
-        "Example format: #AI #MachineLearning #GPT4 ..."
+        "You are a viral growth expert for developer communities on Instagram. "
+        "Generate exactly 30 hashtags for an article about AI in coding/SWE. "
+        "Include: #softwareengineering #coding #ai #llm #developer #python "
+        "#javascript #codingagents #automation #devtools #github #copilot "
+        "and other trending tags for this niche. Output ONLY the hashtags on one line."
     )
 
     def __init__(self):
@@ -87,17 +85,21 @@ class ContentGenerator:
 
         except Exception as e:
             print(f"[Generator] Error generating caption: {e}")
-            return (
-                f"Exciting developments in AI! {title} "
-                "#AI #Tech #ArtificialIntelligence #MachineLearning "
-                "#Innovation #Future #TechNews #AINews #DeepLearning "
-                "#DataScience #Automation #DigitalTransformation "
-                "#EmergingTech #FutureTech #TechInnovation "
-                "#AIRevolution #SmartTech #TechTrends #AITools "
-                "#MachineIntelligence #AIUpdates #TechWorld "
-                "#GenerativeAI #LargeLanguageModels #NeuralNetworks "
-                "#AIResearch #ComputerScience #BigData #CloudAI #GenAI"
+            # Robust developer-focused fallback
+            fallback_body = (
+                f"🚨 Huge news in the AI Dev world: {title}. "
+                "The pace of innovation in coding agents and LLMs is absolutely relentless. "
+                "This development could significantly change how we build software. "
+                "Staying ahead of these shifts is crucial for any modern engineer. "
+                "What's your take? Is this a game changer or just hype? "
+                "Let's discuss in the comments! 👇"
             )
+            fallback_tags = (
+                "#softwareengineering #coding #ai #llm #developer #python "
+                "#javascript #codingagents #automation #devtools #github #copilot "
+                "#tech #programming #innovation #future #developerlife #engineer"
+            )
+            return f"{fallback_body}\n\n{fallback_tags}"
 
     # ------------------------------------------------------------------
     # Image prompt (Gemini → article-relevant visual description)
@@ -359,11 +361,15 @@ class ContentGenerator:
             stripped = line.strip()
             if not stripped:
                 continue
+            
+            # Remove all words starting with # (hashtags) from the line
             words = stripped.split()
-            # Skip pure hashtag lines
-            if words and all(w.startswith("#") for w in words):
+            filtered_words = [w for w in words if not w.startswith("#")]
+            
+            if not filtered_words:
                 continue
-            content_lines.append(stripped)
+                
+            content_lines.append(" ".join(filtered_words))
 
         # Parse content into sentences
         content_text = " ".join(content_lines)
@@ -371,20 +377,35 @@ class ContentGenerator:
 
         slides = []
 
-        if len(sentences) <= 2:
-            # Short caption — one text slide
+        if len(sentences) == 0:
+            slides.append("Stay tuned for more AI updates!")
+        elif len(sentences) == 1:
+            # Only 1 sentence — repeat on 3 slides with different framing
+            slides.append(sentences[0])
+            slides.append(sentences[0])
+            slides.append(sentences[0])
+        elif len(sentences) == 2:
+            # 2 sentences — each gets its own slide, add a 3rd with both
+            slides.append(sentences[0])
+            slides.append(sentences[1])
             slides.append("\n\n".join(sentences))
-        elif len(sentences) <= 5:
-            # Medium — two content slides
-            mid = len(sentences) // 2
-            slides.append("\n\n".join(sentences[:mid]))
-            slides.append("\n\n".join(sentences[mid:]))
+        elif len(sentences) <= 4:
+            # 3-4 sentences — spread across 3 slides
+            slides.append(sentences[0])
+            slides.append("\n\n".join(sentences[1:3]))
+            slides.append("\n\n".join(sentences[3:]) if len(sentences) > 3 else sentences[-1])
+        elif len(sentences) <= 6:
+            # 5-6 sentences — 3 slides, 2 sentences each
+            slides.append("\n\n".join(sentences[0:2]))
+            slides.append("\n\n".join(sentences[2:4]))
+            slides.append("\n\n".join(sentences[4:]))
         else:
-            # Long — three content slides
-            chunk = len(sentences) // 3
+            # 7+ sentences — 4 slides
+            chunk = len(sentences) // 4
             slides.append("\n\n".join(sentences[:chunk]))
             slides.append("\n\n".join(sentences[chunk:chunk * 2]))
-            slides.append("\n\n".join(sentences[chunk * 2:]))
+            slides.append("\n\n".join(sentences[chunk * 2:chunk * 3]))
+            slides.append("\n\n".join(sentences[chunk * 3:]))
 
         return slides
 
@@ -448,9 +469,7 @@ class ContentGenerator:
         img = Image.alpha_composite(base.convert("RGBA"), overlay).convert("RGB")
         draw = ImageDraw.Draw(img)
 
-        # ── 3. Accent bars ────────────────────────────────────────────────
-        draw.rectangle([(0, 0),     (w, 5)],  fill=ACCENT)
-        draw.rectangle([(0, h - 5), (w, h)],  fill=ACCENT)
+        # NOTE: no accent bars — clean, minimal look
 
         # ── 4. Fonts ──────────────────────────────────────────────────────
         font_pairs = [
@@ -472,12 +491,21 @@ class ContentGenerator:
         if bold_font is None:
             bold_font = body_font = small_font = tag_font = ImageFont.load_default()
 
-        # ── 5. "AI & TECH" pill ───────────────────────────────────────────
-        draw.rounded_rectangle([(40, 28), (195, 68)], radius=10, fill=ACCENT)
-        draw.text((56, 35), "AI & TECH", fill=(255, 255, 255), font=tag_font)
+        # ── 5. "AI & TECH" pill — centred at top ────────────────────
+        pill_text = "AI & TECH"
+        ptbbox = draw.textbbox((0, 0), pill_text, font=tag_font)
+        pt_w = ptbbox[2] - ptbbox[0]
+        pad_x, pad_y = 24, 10
+        pill_x = (w - pt_w - 2 * pad_x) // 2
+        draw.rounded_rectangle(
+            [(pill_x, 40), (pill_x + pt_w + 2 * pad_x, 40 + ptbbox[3] - ptbbox[1] + 2 * pad_y)],
+            radius=12, fill=ACCENT,
+        )
+        draw.text((pill_x + pad_x, 40 + pad_y), pill_text, fill=(255, 255, 255), font=tag_font)
 
-        # ── 6. Left accent bar ────────────────────────────────────────────
-        draw.rectangle([(44, 110), (50, h - 100)], fill=(30, 144, 255, 80))
+        # ── 6. Thin decorative divider under pill ─────────────────
+        divider_y = 115
+        draw.rectangle([(w // 2 - 60, divider_y), (w // 2 + 60, divider_y + 2)], fill=(255, 255, 255, 80))
 
         # ── 7. Bullet-point text ──────────────────────────────────────────
         raw_points = [
@@ -487,21 +515,26 @@ class ContentGenerator:
         ]
         points = raw_points[:6]  # cap at 6 bullets
 
-        y        = 120
-        bullet_x = 70
-        text_x   = 112
-        line_h   = 50
-        gap      = 20   # space between bullet points
+        y        = 140         # start below pill + divider
+        margin   = 60          # left margin
+        right_m  = 60          # right margin (leave symmetric space)
+        bullet_r = 6           # bullet circle radius
+        text_x   = margin + 26 # text starts right of bullet
+        # width in chars: usable px / avg char width at font ~36px
+        # 1080 - 60 (left) - 60 (right) - 26 (bullet) = ~934px / ~19px per char ≈ 49
+        wrap_w   = 44
+        line_h   = 56
+        gap      = 22          # space between bullet points
 
         for point in points:
-            # Blue bullet dot
+            # Small white bullet dot
             draw.ellipse(
-                [(bullet_x, y + 14), (bullet_x + 12, y + 26)],
-                fill=ACCENT,
+                [(margin, y + 16), (margin + bullet_r * 2, y + 16 + bullet_r * 2)],
+                fill=(255, 255, 255),
             )
 
-            # Wrapped text
-            wrapped = textwrap.wrap(point, width=28)
+            # Wrapped text — full width of canvas
+            wrapped = textwrap.wrap(point, width=wrap_w)
             for wline in wrapped[:3]:
                 draw.text((text_x, y), wline, fill=TXT_MAIN, font=body_font)
                 y += line_h
@@ -510,6 +543,7 @@ class ContentGenerator:
 
             if y > h - 140:
                 break
+
 
         # ── 8. Slide counter (bottom-right) ───────────────────────────────
         counter = f"{slide_num} / {total_slides}"
