@@ -85,17 +85,21 @@ class ContentGenerator:
 
         except Exception as e:
             print(f"[Generator] Error generating caption: {e}")
-            return (
-                f"Exciting developments in AI! {title} "
-                "#AI #Tech #ArtificialIntelligence #MachineLearning "
-                "#Innovation #Future #TechNews #AINews #DeepLearning "
-                "#DataScience #Automation #DigitalTransformation "
-                "#EmergingTech #FutureTech #TechInnovation "
-                "#AIRevolution #SmartTech #TechTrends #AITools "
-                "#MachineIntelligence #AIUpdates #TechWorld "
-                "#GenerativeAI #LargeLanguageModels #NeuralNetworks "
-                "#AIResearch #ComputerScience #BigData #CloudAI #GenAI"
+            # Robust developer-focused fallback
+            fallback_body = (
+                f"🚨 Huge news in the AI Dev world: {title}. "
+                "The pace of innovation in coding agents and LLMs is absolutely relentless. "
+                "This development could significantly change how we build software. "
+                "Staying ahead of these shifts is crucial for any modern engineer. "
+                "What's your take? Is this a game changer or just hype? "
+                "Let's discuss in the comments! 👇"
             )
+            fallback_tags = (
+                "#softwareengineering #coding #ai #llm #developer #python "
+                "#javascript #codingagents #automation #devtools #github #copilot "
+                "#tech #programming #innovation #future #developerlife #engineer"
+            )
+            return f"{fallback_body}\n\n{fallback_tags}"
 
     # ------------------------------------------------------------------
     # Image prompt (Gemini → article-relevant visual description)
@@ -357,11 +361,15 @@ class ContentGenerator:
             stripped = line.strip()
             if not stripped:
                 continue
+            
+            # Remove all words starting with # (hashtags) from the line
             words = stripped.split()
-            # Skip pure hashtag lines
-            if words and all(w.startswith("#") for w in words):
+            filtered_words = [w for w in words if not w.startswith("#")]
+            
+            if not filtered_words:
                 continue
-            content_lines.append(stripped)
+                
+            content_lines.append(" ".join(filtered_words))
 
         # Parse content into sentences
         content_text = " ".join(content_lines)
