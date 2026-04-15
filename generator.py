@@ -445,9 +445,7 @@ class ContentGenerator:
         img = Image.alpha_composite(base.convert("RGBA"), overlay).convert("RGB")
         draw = ImageDraw.Draw(img)
 
-        # ── 3. Accent bars ────────────────────────────────────────────────
-        draw.rectangle([(0, 0),     (w, 5)],  fill=ACCENT)
-        draw.rectangle([(0, h - 5), (w, h)],  fill=ACCENT)
+        # NOTE: no accent bars — clean, minimal look
 
         # ── 4. Fonts ──────────────────────────────────────────────────────
         font_pairs = [
@@ -469,12 +467,21 @@ class ContentGenerator:
         if bold_font is None:
             bold_font = body_font = small_font = tag_font = ImageFont.load_default()
 
-        # ── 5. "AI & TECH" pill ───────────────────────────────────────────
-        draw.rounded_rectangle([(40, 28), (195, 68)], radius=10, fill=ACCENT)
-        draw.text((56, 35), "AI & TECH", fill=(255, 255, 255), font=tag_font)
+        # ── 5. "AI & TECH" pill — centred at top ────────────────────
+        pill_text = "AI & TECH"
+        ptbbox = draw.textbbox((0, 0), pill_text, font=tag_font)
+        pt_w = ptbbox[2] - ptbbox[0]
+        pad_x, pad_y = 24, 10
+        pill_x = (w - pt_w - 2 * pad_x) // 2
+        draw.rounded_rectangle(
+            [(pill_x, 40), (pill_x + pt_w + 2 * pad_x, 40 + ptbbox[3] - ptbbox[1] + 2 * pad_y)],
+            radius=12, fill=ACCENT,
+        )
+        draw.text((pill_x + pad_x, 40 + pad_y), pill_text, fill=(255, 255, 255), font=tag_font)
 
-        # ── 6. Left accent bar ────────────────────────────────────────────
-        draw.rectangle([(44, 110), (50, h - 100)], fill=(30, 144, 255, 80))
+        # ── 6. Thin decorative divider under pill ─────────────────
+        divider_y = 115
+        draw.rectangle([(w // 2 - 60, divider_y), (w // 2 + 60, divider_y + 2)], fill=(255, 255, 255, 80))
 
         # ── 7. Bullet-point text ──────────────────────────────────────────
         raw_points = [
@@ -484,21 +491,22 @@ class ContentGenerator:
         ]
         points = raw_points[:6]  # cap at 6 bullets
 
-        y        = 120
-        bullet_x = 70
-        text_x   = 112
-        line_h   = 50
-        gap      = 20   # space between bullet points
+        y        = 140         # start below pill + divider
+        margin   = 70          # left & right margin
+        bullet_r = 6           # bullet circle radius
+        text_x   = margin + 26 # text starts right of bullet
+        line_h   = 52
+        gap      = 18          # space between bullet points
 
         for point in points:
-            # Blue bullet dot
+            # Small white bullet dot
             draw.ellipse(
-                [(bullet_x, y + 14), (bullet_x + 12, y + 26)],
-                fill=ACCENT,
+                [(margin, y + 14), (margin + bullet_r * 2, y + 14 + bullet_r * 2)],
+                fill=(255, 255, 255),
             )
 
-            # Wrapped text
-            wrapped = textwrap.wrap(point, width=28)
+            # Wrapped text (wider column)
+            wrapped = textwrap.wrap(point, width=32)
             for wline in wrapped[:3]:
                 draw.text((text_x, y), wline, fill=TXT_MAIN, font=body_font)
                 y += line_h
@@ -507,6 +515,7 @@ class ContentGenerator:
 
             if y > h - 140:
                 break
+
 
         # ── 8. Slide counter (bottom-right) ───────────────────────────────
         counter = f"{slide_num} / {total_slides}"
