@@ -18,10 +18,11 @@ class ContentGenerator:
         "You are an Instagram content creator for a developer-focused AI niche page "
         "with 100k+ followers. Write a high-value Instagram caption for this "
         "software engineering news article. Rules: Start with a powerful hook "
-        "(mentioning coding agents, LLMs, or dev tools). Use 3-5 short punchy "
-        "sentences explained from a developer's perspective. Be conversational "
-        "and insightful. End with a CTA (e.g., 'Would you use this in your workflow?'). "
-        "Do NOT include any hashtags. Keep total under 200 words."
+        "(mentioning coding agents, LLMs, or dev tools). Write exactly 6-7 short "
+        "punchy sentences explained from a developer's perspective — make each "
+        "sentence its own standalone insight. Be conversational and insightful. "
+        "End with a CTA (e.g., 'Would you use this in your workflow?'). "
+        "Do NOT include any hashtags. Keep total under 220 words."
     )
 
     HASHTAG_PROMPT = (
@@ -368,20 +369,35 @@ class ContentGenerator:
 
         slides = []
 
-        if len(sentences) <= 2:
-            # Short caption — one text slide
+        if len(sentences) == 0:
+            slides.append("Stay tuned for more AI updates!")
+        elif len(sentences) == 1:
+            # Only 1 sentence — repeat on 3 slides with different framing
+            slides.append(sentences[0])
+            slides.append(sentences[0])
+            slides.append(sentences[0])
+        elif len(sentences) == 2:
+            # 2 sentences — each gets its own slide, add a 3rd with both
+            slides.append(sentences[0])
+            slides.append(sentences[1])
             slides.append("\n\n".join(sentences))
-        elif len(sentences) <= 5:
-            # Medium — two content slides
-            mid = len(sentences) // 2
-            slides.append("\n\n".join(sentences[:mid]))
-            slides.append("\n\n".join(sentences[mid:]))
+        elif len(sentences) <= 4:
+            # 3-4 sentences — spread across 3 slides
+            slides.append(sentences[0])
+            slides.append("\n\n".join(sentences[1:3]))
+            slides.append("\n\n".join(sentences[3:]) if len(sentences) > 3 else sentences[-1])
+        elif len(sentences) <= 6:
+            # 5-6 sentences — 3 slides, 2 sentences each
+            slides.append("\n\n".join(sentences[0:2]))
+            slides.append("\n\n".join(sentences[2:4]))
+            slides.append("\n\n".join(sentences[4:]))
         else:
-            # Long — three content slides
-            chunk = len(sentences) // 3
+            # 7+ sentences — 4 slides
+            chunk = len(sentences) // 4
             slides.append("\n\n".join(sentences[:chunk]))
             slides.append("\n\n".join(sentences[chunk:chunk * 2]))
-            slides.append("\n\n".join(sentences[chunk * 2:]))
+            slides.append("\n\n".join(sentences[chunk * 2:chunk * 3]))
+            slides.append("\n\n".join(sentences[chunk * 3:]))
 
         return slides
 
@@ -492,21 +508,25 @@ class ContentGenerator:
         points = raw_points[:6]  # cap at 6 bullets
 
         y        = 140         # start below pill + divider
-        margin   = 70          # left & right margin
+        margin   = 60          # left margin
+        right_m  = 60          # right margin (leave symmetric space)
         bullet_r = 6           # bullet circle radius
         text_x   = margin + 26 # text starts right of bullet
-        line_h   = 52
-        gap      = 18          # space between bullet points
+        # width in chars: usable px / avg char width at font ~36px
+        # 1080 - 60 (left) - 60 (right) - 26 (bullet) = ~934px / ~19px per char ≈ 49
+        wrap_w   = 44
+        line_h   = 56
+        gap      = 22          # space between bullet points
 
         for point in points:
             # Small white bullet dot
             draw.ellipse(
-                [(margin, y + 14), (margin + bullet_r * 2, y + 14 + bullet_r * 2)],
+                [(margin, y + 16), (margin + bullet_r * 2, y + 16 + bullet_r * 2)],
                 fill=(255, 255, 255),
             )
 
-            # Wrapped text (wider column)
-            wrapped = textwrap.wrap(point, width=32)
+            # Wrapped text — full width of canvas
+            wrapped = textwrap.wrap(point, width=wrap_w)
             for wline in wrapped[:3]:
                 draw.text((text_x, y), wline, fill=TXT_MAIN, font=body_font)
                 y += line_h
