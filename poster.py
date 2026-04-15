@@ -4,8 +4,9 @@ Posts images to Instagram using Meta Graph API (requires Business/Creator accoun
 """
 
 import os
+import time
 import requests
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
@@ -318,6 +319,140 @@ class InstagramPoster:
         except Exception as e:
             print(f"[Poster] ✗ Unexpected error during posting: {e}")
             return False
+
+    # ------------------------------------------------------------------
+    # Carousel posting
+    # ------------------------------------------------------------------
+
+    def _create_carousel_item(self, image_url: str) -> Optional[str]:
+        """Create a single carousel-item media container.
+
+        Args:
+            image_url: Public URL of the image for this slide
+
+        Returns:
+            creation_id string if successful, None otherwise
+        """
+        try:
+            url = f"{self.GRAPH_API_BASE}/{self.account_id}/media"
+            payload = {
+                "image_url":        image_url,
+                "is_carousel_item": "true",
+                "access_token":     self.access_token,
+            }
+            response = requests.post(url, data=payload, timeout=30)
+            if response.status_code == 200:
+                creation_id = response.json().get("id")
+                print(f"[Poster] ✓ Carousel item created: {creation_id}")
+                return creation_id
+            error_msg = response.json().get("error", {}).get("message", "Unknown error")
+            print(f"[Poster] ✗ Carousel item failed: {error_msg}")
+            return None
+        except Exception as e:
+            print(f"[Poster] ✗ Error creating carousel item: {e}")
+            return None
+
+    def _create_carousel_container(
+        self, children_ids: List[str], caption: str
+    ) -> Optional[str]:
+        """Create a carousel (album) media container referencing child IDs.
+
+        Args:
+            children_ids: List of media container IDs (from _create_carousel_item)
+            caption:      Caption text for the post
+
+        Returns:
+            carousel container creation_id if successful, None otherwise
+        """
+        try:
+            url = f"{self.GRAPH_API_BASE}/{self.account_id}/media"
+            payload = {
+                "media_type":   "CAROUSEL",
+                "children":     ",".join(children_ids),
+                "caption":      caption,
+                "access_token": self.access_token,
+            }
+            response = requests.post(url, data=payload, timeout=30)
+            if response.status_code == 200:
+                creation_id = response.json().get("id")
+                print(f"[Poster] ✓ Carousel container created: {creation_id}")
+                return creation_id
+            error_msg = response.json().get("error", {}).get("message", "Unknown error")
+            print(f"[Poster] ✗ Carousel container failed: {error_msg}")
+            return None
+        except Exception as e:
+            print(f"[Poster] ✗ Error creating carousel container: {e}")
+            return None
+
+    def post_carousel_to_instagram(
+        self, image_urls: List[str], caption: str
+    ) -> bool:
+        """Post a carousel (multiple-image) post to Instagram.
+
+        Flow:
+        1. Create a carousel-item container for every image URL
+        2. Create a parent carousel container with all child IDs
+        3. Publish the carousel container
+
+        Falls back to single-image post if:
+        - Only 1 URL is provided
+        - Carousel container creation fails
+        - Fewer than 2 items are successfully created
+
+        Instagram requires 2–10 images per carousel.
+
+        Args:
+            image_urls: List of public image URLs [cover, slide2, ...]
+            caption:    Caption for the post
+
+        Returns:
+            True if published successfully, False otherwise
+        """
+        if not image_urls:
+            print("[Poster] ✗ No image URLs provided")
+            return False
+
+        # Single-image fallback
+        if len(image_urls) == 1:
+            print("[Poster] Only 1 image — posting as single photo")
+            return self.post_to_instagram(image_urls[0], caption)
+
+        # Enforce Instagram's 10-slide carousel limit
+        image_urls = image_urls[:10]
+        print(f"[Poster] Building carousel with {len(image_urls)} slides...")
+
+        # Step 1: Create carousel item containers
+        children_ids = []
+        for i, img_url in enumerate(image_urls):
+            print(f"[Poster] Creating item {i + 1}/{len(image_urls)}...")
+            cid = self._create_carousel_item(img_url)
+            if cid:
+                children_ids.append(cid)
+            else:
+                print(f"[Poster] ⚠ Slide {i + 1} skipped (upload/container error)")
+            # Brief pause to respect API rate limits
+            time.sleep(0.5)
+
+        if len(children_ids) < 2:
+            print("[Poster] ✗ Not enough carousel items — falling back to single photo")
+            return self.post_to_instagram(image_urls[0], caption)
+
+        # Step 2: Create parent carousel container
+        carousel_id = self._create_carousel_container(children_ids, caption)
+        if not carousel_id:
+            print("[Poster] ✗ Carousel container failed — falling back to single photo")
+            return self.post_to_instagram(image_urls[0], caption)
+
+        # Step 3: Publish
+        result = self._publish_media_container(carousel_id)
+        if result:
+            media_id = result["media_id"]
+            print(f"[Poster] ✓ Carousel published! Slides: {len(children_ids)}")
+            print(f"[Poster] 📱 View post: https://www.instagram.com/p/{media_id}/")
+            return True
+
+        print("[Poster] ✗ Carousel publish failed")
+        return False
 
 
 def main():

@@ -1,96 +1,40 @@
-"""
-Test script for generator.py
-Tests caption and image generation functions.
-"""
-
+import sys
 from generator import ContentGenerator
+from dotenv import load_dotenv
+
+load_dotenv()
+
+if sys.stdout.encoding and sys.stdout.encoding.lower() != 'utf-8':
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
 
 def test_generator():
-    """Test the ContentGenerator with dummy article data."""
-    print("=" * 70)
-    print("GENERATOR TEST - Caption & Image Generation")
-    print("=" * 70)
-    
-    try:
-        generator = ContentGenerator()
-        
-        # Create dummy article dict
-        dummy_article = {
-            'title': 'OpenAI Announces GPT-5: Revolutionary Multimodal AI Model',
-            'summary': 'OpenAI has unveiled GPT-5, featuring advanced reasoning capabilities, improved context handling up to 1 million tokens, and breakthrough performance in code generation and scientific problem-solving.',
-            'url': 'https://example.com/openai-gpt5',
-            'source': 'techcrunch'
-        }
-        
-        print(f"\nDummy Article:")
-        print(f"  Title: {dummy_article['title']}")
-        print(f"  Summary: {dummy_article['summary'][:80]}...\n")
-        
-        # Test 1: Generate Caption
-        print("-" * 70)
-        print("TEST 1: Generate Caption")
-        print("-" * 70)
-        
-        caption = generator.generate_caption(dummy_article)
-        
-        if caption:
-            print(f"\n✓ Caption Generated ({len(caption)} chars):")
-            print(f"\n{caption}\n")
-            caption_pass = True
-        else:
-            print("\n✗ Failed to generate caption\n")
-            caption_pass = False
-        
-        # Test 2: Generate Image URL
-        print("-" * 70)
-        print("TEST 2: Generate Image URL")
-        print("-" * 70)
-        
-        image_url = generator.generate_image_url(dummy_article['title'])
-        
-        if image_url:
-            print(f"\n✓ Image URL Generated:")
-            print(f"{image_url}\n")
-            
-            # Verify URL format
-            if image_url.startswith('https://image.pollinations.ai'):
-                print("✓ URL format is correct (starts with https://image.pollinations.ai)")
-                image_pass = True
-            else:
-                print("✗ URL format is incorrect (does not start with https://image.pollinations.ai)")
-                image_pass = False
-        else:
-            print("\n✗ Failed to generate image URL\n")
-            image_pass = False
-        
-        # Final Result
-        print("\n" + "=" * 70)
-        if caption_pass and image_pass:
-            print("✓ PASS: All tests passed")
-            result = True
-        else:
-            print("✗ FAIL: One or more tests failed")
-            if not caption_pass:
-                print("  - Caption generation failed")
-            if not image_pass:
-                print("  - Image URL generation failed")
-            result = False
-        
-        print("=" * 70 + "\n")
-        return result
-        
-    except ValueError as e:
-        print(f"\n✗ Configuration Error: {e}")
-        print("Ensure GEMINI_API_KEY is set in your .env file\n")
-        return False
-    except Exception as e:
-        print(f"\n✗ Error during test: {e}\n")
-        import traceback
-        traceback.print_exc()
-        return False
+    gen = ContentGenerator()
+
+    dummy_article = {
+        "title": "OpenAI releases GPT-5 with advanced reasoning",
+        "summary": "OpenAI has announced GPT-5, featuring dramatically improved reasoning capabilities and multimodal understanding.",
+        "url": "https://example.com/gpt5",
+        "source": "TechCrunch",
+    }
+
+    print("Testing generate_caption()...")
+    caption = gen.generate_caption(dummy_article)
+    assert len(caption) > 20, "Caption too short"
+    print(f"Caption:\n{caption}\n")
+
+    print("Testing generate_image_url()...")
+    url = gen.generate_image_url(dummy_article)
+    assert url.startswith("https://image.pollinations.ai"), "Wrong URL"
+    assert "1080" in url, "Wrong dimensions"
+    print(f"Image URL:\n{url}\n")
+
+    print("Testing generate_content()...")
+    content = gen.generate_content(dummy_article)
+    assert "caption" in content, "Missing caption key"
+    assert "image_url" in content, "Missing image_url key"
+    print("All tests PASSED")
 
 
-if __name__ == '__main__':
-    success = test_generator()
-    exit(0 if success else 1)
+if __name__ == "__main__":
+    test_generator()

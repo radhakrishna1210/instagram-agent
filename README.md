@@ -1,301 +1,474 @@
-# Instagram Agent - AI & Tech News Automation
+# 🤖 Instagram AI Agent
 
-Automatic Instagram posting bot that fetches AI & tech news, generates engaging captions with Gemini AI, creates images with Pollinations.ai, and posts to Instagram using the Meta Graph API.
+<div align="center">
 
-**Features:**
-- ✅ Automated daily posting (configurable times)
-- ✅ AI-powered caption generation (Google Gemini)
-- ✅ Intelligent image generation (Pollinations.ai)
-- ✅ Duplicate post prevention
-- ✅ Free tier compatible (all free APIs)
-- ✅ One-click deployment to Railway.app
+![Python](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python&logoColor=white)
+![Gemini](https://img.shields.io/badge/Google%20Gemini-2.5%20Flash-orange?logo=google&logoColor=white)
+![Instagram](https://img.shields.io/badge/Instagram%20API-Graph%20v19-purple?logo=instagram&logoColor=white)
+![Cloudinary](https://img.shields.io/badge/Cloudinary-Image%20Hosting-blue?logo=cloudinary&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-green)
 
----
+**A fully automated Instagram content pipeline for AI & Tech news.**  
+Fetches trending articles → generates carousel posts with AI captions → posts to Instagram — on a schedule, hands-free.
 
-## Quick Start
-
-### Prerequisites
-- Python 3.11+
-- Git
-- Instagram Creator/Business account
-- API keys (all free tier):
-  - Google Gemini API key
-  - Meta App ID & Access Token for Instagram Graph API
-
-### Local Setup
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/yourusername/instagram-agent.git
-   cd instagram-agent
-   ```
-
-2. **Create virtual environment**
-   ```bash
-   python -m venv venv
-   
-   # On Windows:
-   venv\Scripts\activate
-   
-   # On macOS/Linux:
-   source venv/bin/activate
-   ```
-
-3. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Create .env file**
-   ```bash
-   cp .env.example .env
-   ```
-   
-   Edit `.env` with your credentials:
-   ```
-   GEMINI_API_KEY=your_key_here
-   INSTAGRAM_ACCOUNT_ID=your_account_id
-   INSTAGRAM_ACCESS_TOKEN=your_token
-   POST_TIME_MORNING=09:00
-   POST_TIME_EVENING=18:00
-   ```
-
-5. **Test the agent**
-   ```bash
-   python main.py
-   ```
-   This will fetch news, generate content, and attempt to post (once).
-
-6. **Run scheduler for continuous posting**
-   ```bash
-   python scheduler.py
-   ```
-   This schedules automatic posts at the configured times daily.
+</div>
 
 ---
 
-## File Structure
+## 📋 Table of Contents
+
+- [Overview](#-overview)
+- [Features](#-features)
+- [How It Works](#-how-it-works)
+- [Project Structure](#-project-structure)
+- [Prerequisites](#-prerequisites)
+- [Installation](#-installation)
+- [Configuration](#-configuration)
+- [Usage](#-usage)
+- [Carousel Post Design](#-carousel-post-design)
+- [Scheduling](#-scheduling)
+- [API Reference](#-api-reference)
+- [Troubleshooting](#-troubleshooting)
+- [Contributing](#-contributing)
+- [License](#-license)
+
+---
+
+## 🌟 Overview
+
+Instagram AI Agent is a Python-based automation tool that runs a complete Instagram content pipeline:
+
+1. **Fetches** the latest AI & Tech news from top RSS feeds (TechCrunch, MIT Tech Review, The Verge)
+2. **Generates** an engaging caption with 30 viral hashtags using Google Gemini AI
+3. **Creates** a multi-slide carousel post:  
+   - **Slide 1**: Cinematic AI-generated cover photo with headline overlay  
+   - **Slides 2+**: Topic-relevant background image + bullet-point text from the caption
+4. **Uploads** all images to Cloudinary for public hosting
+5. **Posts** the carousel to Instagram via Meta Graph API
+6. **Schedules** automated posts twice daily (morning & evening)
+
+---
+
+## ✨ Features
+
+| Feature | Description |
+|---------|-------------|
+| 🗞️ **Multi-source news** | Pulls from TechCrunch, MIT Tech Review, The Verge simultaneously |
+| 🤖 **AI captions** | Google Gemini 2.5 Flash generates hook-driven, viral captions |
+| #️⃣ **30 viral hashtags** | Gemini picks trending, topic-specific hashtags (Instagram's maximum) |
+| 🖼️ **AI image generation** | Pollinations.ai generates cinematic, article-relevant visuals |
+| 📸 **Carousel posts** | 3–5 swipeable slides per post for maximum engagement |
+| 🎨 **Professional design** | Pillow-generated overlays: gradient, blue accent bars, bullet points |
+| ☁️ **Cloud image hosting** | Cloudinary hosts all images for public Instagram-compatible URLs |
+| 🔄 **Duplicate prevention** | Tracks posted URLs in `posted_urls.json` — never reposts the same article |
+| ⏰ **Auto-scheduler** | APScheduler runs posts at configurable times (default: 9 AM & 6 PM) |
+| 🔁 **Token management** | Checks token validity and supports long-lived token refresh |
+| 🛡️ **Fallback safety** | Every step has graceful fallbacks — if carousel fails, posts single image |
+
+---
+
+## 🔄 How It Works
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    INSTAGRAM AI AGENT PIPELINE                  │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  1. FETCH      RSS Feeds → Filter AI/Tech keywords             │
+│     ↓          (TechCrunch, MIT Tech Review, The Verge)        │
+│                                                                 │
+│  2. DEDUPE     Check posted_urls.json → skip already-posted    │
+│     ↓                                                           │
+│                                                                 │
+│  3. GENERATE   Gemini AI → Caption body (hook + CTA)           │
+│     ↓          Gemini AI → 30 trending hashtags                │
+│                                                                 │
+│  4. IMAGES     Pollinations.ai → Topic-relevant photo          │
+│     ↓          Pillow → Add headline + source overlay          │
+│                Pillow → Text slides with BG image + bullets    │
+│                                                                 │
+│  5. HOST       Cloudinary upload → Get public HTTPS URLs       │
+│     ↓                                                           │
+│                                                                 │
+│  6. POST       Meta Graph API → Create carousel containers     │
+│     ↓          Meta Graph API → Publish carousel post          │
+│                                                                 │
+│  7. LOG        Save URL to history + write to logs.txt         │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 📁 Project Structure
 
 ```
 instagram-agent/
-├── main.py              # Main orchestrator (fetch → generate → post)
-├── fetcher.py           # Fetches AI/Tech news from RSS feeds
-├── generator.py         # Generates captions (Gemini) + images (Pollinations)
-├── poster.py            # Posts to Instagram via Meta Graph API
-├── scheduler.py         # Schedules posts at configured times
-├── requirements.txt     # Python dependencies
-├── .env                 # Configuration (local only, not committed)
-├── .gitignore           # Git ignore rules
-├── Procfile             # Railway.app deployment
-├── runtime.txt          # Python version for Railway
-├── logs.txt             # Execution log (auto-created)
-├── posted_urls.json     # Duplicate prevention (auto-created)
-└── README.md            # This file
+│
+├── main.py              # 🎯 Main orchestrator — runs the full pipeline
+├── fetcher.py           # 🗞️  News fetcher — RSS feeds + AI keyword filter
+├── generator.py         # 🎨 Content generator — captions, images, carousel slides
+├── poster.py            # 📤 Instagram poster — Meta Graph API integration
+├── scheduler.py         # ⏰ Scheduler — APScheduler for automated posting
+├── webhook_handler.py   # 🔗 FastAPI webhook handler (optional)
+│
+├── .env                 # 🔐 Environment variables (never commit this!)
+├── .env.example         # 📋 Template for environment variables
+├── requirements.txt     # 📦 Python dependencies
+├── posted_urls.json     # 📝 Duplicate prevention history (auto-generated)
+├── logs.txt             # 📊 Execution logs (auto-generated)
+│
+├── Procfile             # 🚀 For deployment (Heroku/Render)
+├── runtime.txt          # 🐍 Python version for deployment
+├── DEPLOY.bat           # 🪟 Windows deployment script
+├── DEPLOY.sh            # 🐧 Linux/Mac deployment script
+└── README.md            # 📖 This file
 ```
 
 ---
 
-## API Keys - Where to Get Them
+## 📦 Prerequisites
 
-### 1. Google Gemini API Key (Free)
-- Go to: https://aistudio.google.com/app/apikeys
-- Click "Create API Key"
-- Free tier: 60 requests/min, 1,500 requests/day
-- Copy key to `.env`
+Before you begin, ensure you have:
 
-### 2. Instagram Graph API Credentials
-**Account Setup:**
-1. Convert Instagram account to Creator or Business account
-2. Create Facebook App: https://developers.facebook.com/apps
-3. Add "Instagram Graph API" product
-4. Get App ID and App Secret
-5. Generate long-lived access token
-
-**In your `.env`:**
-```
-INSTAGRAM_ACCOUNT_ID=your_account_id
-INSTAGRAM_ACCESS_TOKEN=your_long_lived_token
-FACEBOOK_APP_ID=your_app_id
-FACEBOOK_APP_SECRET=your_app_secret
-```
-
-### 3. Pollinations.ai (Free - No Key Needed)
-- No API key required
-- Free tier: unlimited image generation
+- **Python 3.10+** installed ([Download](https://python.org/downloads))
+- **Instagram Business or Creator account** (personal accounts won't work)
+- **Facebook Developer App** with Instagram Basic Display or Graph API
+- **Google AI Studio account** for Gemini API key
+- **Cloudinary account** for image hosting (free tier works)
 
 ---
 
-## Configuration
+## 🚀 Installation
 
-Edit `.env` to customize:
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/yourusername/instagram-agent.git
+cd instagram-agent
+```
+
+### 2. Create a virtual environment
+
+```bash
+# Windows
+python -m venv venv
+venv\Scripts\activate
+
+# macOS / Linux
+python3 -m venv venv
+source venv/bin/activate
+```
+
+### 3. Install dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 4. Set up environment variables
+
+```bash
+cp .env.example .env
+```
+
+Then edit `.env` with your credentials (see [Configuration](#-configuration) below).
+
+---
+
+## ⚙️ Configuration
+
+Create a `.env` file in the project root with the following variables:
 
 ```env
-# Posting times (24-hour format)
+# ── Google Gemini AI ──────────────────────────────────────────────
+# Get your free API key at: https://aistudio.google.com/app/apikeys
+# Free tier: 60 requests/minute, 1500 requests/day
+GEMINI_API_KEY=your_gemini_api_key_here
+
+# ── Instagram Graph API ───────────────────────────────────────────
+# Requires Instagram Business or Creator account
+# Setup guide: https://developers.facebook.com/docs/instagram-api/getting-started
+INSTAGRAM_ACCOUNT_ID=your_instagram_account_id
+INSTAGRAM_ACCESS_TOKEN=your_long_lived_access_token
+
+# ── Facebook App Credentials (optional — for token refresh) ──────
+# Get from: https://developers.facebook.com/apps
+FACEBOOK_APP_ID=your_facebook_app_id
+FACEBOOK_APP_SECRET=your_facebook_app_secret
+
+# ── Cloudinary (image hosting) ────────────────────────────────────
+# Free account at: https://cloudinary.com
+# Required: Instagram needs a public HTTPS URL for images
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
+
+# ── Scheduler ────────────────────────────────────────────────────
+# 24-hour format (HH:MM) — posts happen at these times daily
 POST_TIME_MORNING=09:00
 POST_TIME_EVENING=18:00
+```
 
-# Only news containing these keywords are posted
-# (configured in fetcher.py - AI, machine learning, GPT, LLM, robot, etc.)
+### Getting API Credentials
 
-# Duplicate prevention
-# Keeps last 50 posted URLs in posted_urls.json
+<details>
+<summary><b>📱 Instagram Graph API Setup</b></summary>
+
+1. Go to [Facebook Developers](https://developers.facebook.com/apps)
+2. Create a new App → Select **Business** type
+3. Add **Instagram Graph API** product
+4. Connect your Instagram Business/Creator account
+5. Generate a **Long-Lived User Access Token** (valid for 60 days)
+6. Find your **Instagram Account ID** via:  
+   `GET https://graph.facebook.com/v19.0/me/accounts?access_token=YOUR_TOKEN`
+
+</details>
+
+<details>
+<summary><b>🤖 Google Gemini API Setup</b></summary>
+
+1. Go to [Google AI Studio](https://aistudio.google.com/app/apikeys)
+2. Sign in with your Google account
+3. Click **Create API Key**
+4. Copy the key to your `.env` file
+5. Free tier includes 60 requests/min and 1,500 requests/day
+
+</details>
+
+<details>
+<summary><b>☁️ Cloudinary Setup</b></summary>
+
+1. Sign up at [cloudinary.com](https://cloudinary.com) (free tier: 25GB storage, 25GB bandwidth/month)
+2. Go to your **Dashboard**
+3. Copy your **Cloud Name**, **API Key**, and **API Secret**
+4. Add them to your `.env` file
+
+</details>
+
+---
+
+## 🎮 Usage
+
+### Run once (manual post)
+
+```bash
+python main.py
+```
+
+This runs the full pipeline once — fetches news, generates content, posts to Instagram immediately.
+
+### Run the auto-scheduler
+
+```bash
+python scheduler.py
+```
+
+Starts the background scheduler. Posts automatically at the configured morning and evening times every day. Keep this running in a terminal or deploy it to a server.
+
+### Test individual components
+
+```bash
+# Test news fetching only
+python fetcher.py
+
+# Test content generation (caption + images)
+python test_generator.py
+
+# Test Instagram API connection
+python poster.py
+```
+
+### Example output
+
+```
+======================================================================
+Instagram Agent - AI & Tech Content Automation
+======================================================================
+
+[2026-04-15 09:00:00] INFO - ✓ Environment validated
+[2026-04-15 09:00:00] INFO - [1/6] Fetching AI & Tech news...
+[2026-04-15 09:00:02] INFO - ✓ Found 9 articles
+[2026-04-15 09:00:02] INFO - [2/6] Checking for duplicates...
+[2026-04-15 09:00:02] INFO - ✓ Found new article to post
+[2026-04-15 09:00:02] INFO - [3/6] Selected: GPT-5 Released with Reasoning Capabilities
+[2026-04-15 09:00:05] INFO - [4/6] Generating caption + carousel slides...
+[2026-04-15 09:00:08] INFO - ✓ Caption: 187 chars, 30 hashtags
+[2026-04-15 09:00:35] INFO - ✓ Carousel ready: 4 slides
+[2026-04-15 09:00:35] INFO - [5/6] Image URLs ready...
+[2026-04-15 09:00:35] INFO - ✓ Cover image: https://res.cloudinary.com/...
+[2026-04-15 09:00:35] INFO - ✓ Text slides: 3 additional slides
+[2026-04-15 09:00:36] INFO - [6/6] Posting carousel to Instagram...
+[2026-04-15 09:00:40] INFO - ✓ Carousel published! Slides: 4
+[2026-04-15 09:00:40] INFO - 📱 View post: https://www.instagram.com/p/ABC123/
 ```
 
 ---
 
-## Deployment to Railway.app (Free)
+## 🎨 Carousel Post Design
 
-### Step 1: Prepare for Deployment
+Each post is automatically a **multi-slide Instagram carousel**:
 
-1. **Initialize git repository**
-   ```bash
-   git init
-   git add .
-   git commit -m "Initial commit: Instagram Agent setup"
-   ```
+### Slide 1 — Cover Photo
+- Cinematic AI-generated image relevant to the article topic (via Pollinations.ai)
+- Dark gradient overlay on bottom half for text legibility
+- **Bold white headline** (article title) with drop shadow
+- Blue accent bar `#1E90FF` on the left edge
+- Source label at bottom (`AI & Tech • TechCrunch`)
 
-2. **Push to GitHub**
-   ```bash
-   git remote add origin https://github.com/yourusername/instagram-agent.git
-   git branch -M main
-   git push -u origin main
-   ```
+### Slides 2+ — Text Slides
+- **Topic-relevant background image** (same subject, different seed = visual variety)
+- **65% dark overlay** for text contrast
+- Blue `#1E90FF` accent bars at top + bottom + left edge
+- **Bullet points** (●) for each sentence from the caption
+- `AI & TECH` pill badge at top-left
+- Slide counter at bottom-right (e.g. `3 / 4`)
 
-### Step 2: Deploy on Railway
+> **Note:** Hashtags appear only in the Instagram caption text — never on any image slide.
 
-1. Go to https://railway.app/
-2. Sign up (free with GitHub)
-3. Click "New Project" → "Deploy from GitHub"
-4. Select your `instagram-agent` repository
-5. Railway automatically detects Python and reads `Procfile` + `runtime.txt`
-6. Wait for deployment to complete
+### Color Palette
 
-### Step 3: Add Environment Variables in Railway Dashboard
-
-**After deployment:**
-
-1. Go to your Railway project dashboard
-2. Click on the "Variables" tab (or settings icon)
-3. Add each environment variable **individually**:
-   - Click "New Variable"
-   - Enter key: `GEMINI_API_KEY`
-   - Enter value: `your_actual_key_here`
-   - Click "Add"
-4. Repeat for all required variables:
-   ```
-   GEMINI_API_KEY
-   INSTAGRAM_ACCOUNT_ID
-   INSTAGRAM_ACCESS_TOKEN
-   FACEBOOK_APP_ID
-   FACEBOOK_APP_SECRET
-   POST_TIME_MORNING
-   POST_TIME_EVENING
-   ```
-
-5. After adding all variables, Railway will **automatically restart** the service
-
-### Step 4: Monitor Logs
-
-1. In Railway dashboard, go to "Logs" tab
-2. You'll see real-time output from `scheduler.py`
-3. Check for successful posts at scheduled times
+| Element | Color | Hex |
+|---------|-------|-----|
+| Accent / bullets | Dodger Blue | `#1E90FF` |
+| Body text | Near-white | `#F5F5F5` |
+| Labels / counters | Muted blue-grey | `#7890D2` |
+| Overlay | Semi-black | `rgba(0,0,0,0.65)` |
 
 ---
 
-## Troubleshooting
+## ⏰ Scheduling
 
-### "GEMINI_API_KEY not found in .env"
-- Make sure `.env` file is in project root
-- Check that variable name is exactly `GEMINI_API_KEY`
-- On Railway: Add via Variables tab (not in Procfile)
+The scheduler (`scheduler.py`) posts automatically using **APScheduler** with cron triggers.
 
-### "Instagram token validation failed"
-- Token may have expired (long-lived tokens last ~60 days)
-- Regenerate token on developers.facebook.com
-- Update in Railway Variables
+### Default schedule
+- **Morning post**: 9:00 AM daily
+- **Evening post**: 6:00 PM daily
 
-### "No articles found"
-- RSS feeds might be down
-- Check `fetcher.py` - news sources are hardcoded
-- Verify internet connectivity
+### Customize times
 
-### Scheduler not running posts
-- Check Railway logs for errors
-- Verify `POST_TIME_MORNING` and `POST_TIME_EVENING` format (HH:MM)
-- Confirm timezone is set correctly (uses server timezone)
+Edit your `.env` file:
 
----
+```env
+POST_TIME_MORNING=08:30   # 8:30 AM
+POST_TIME_EVENING=20:00   # 8:00 PM
+```
 
-## Logs
+### Deploy for 24/7 operation
 
-- **Local**: `logs.txt` - Text log of all posting attempts
-- **Railway**: View in "Logs" tab of Railway dashboard
-- **Format**: `[YYYY-MM-DD HH:MM] STATUS | Article Title`
+For always-on operation, deploy to:
+- **Railway** or **Render** (free tier available)
+- **Heroku** (using `Procfile`)
+- **Ubuntu VPS** with `systemd` or `screen`
 
----
-
-## Security Notes
-
-⚠️ **Never commit `.env` to git!**
-- `.env` is in `.gitignore` for this reason
-- API keys should only live in:
-  - Local `.env` (never commit)
-  - Railway Variables (encrypted by Railway)
-
-✅ **Safe to commit:**
-- `main.py`, `fetcher.py`, `generator.py`, etc. (no secrets)
-- `requirements.txt` (dependencies only)
-- `Procfile`, `runtime.txt` (deployment config)
+```bash
+# Keep running on a VPS using screen
+screen -S instagram-agent
+python scheduler.py
+# Press Ctrl+A then D to detach
+```
 
 ---
 
-## How It Works
+## 📡 API Reference
 
-### Pipeline (6 Steps)
-1. **Fetch** - Get latest AI/Tech news from 3 RSS feeds
-2. **Filter** - Keep only articles with AI keywords
-3. **Deduplicate** - Skip if URL already posted
-4. **Generate Caption** - Use Gemini AI to write engaging caption
-5. **Generate Image** - Create image with Pollinations.ai
-6. **Post** - Upload to Instagram via Meta Graph API
-
-### Scheduling
-- Runs at `POST_TIME_MORNING` every day
-- Runs at `POST_TIME_EVENING` every day
-- Uses APScheduler for precise timing
-- Automatically retries if a job is missed
-
-### Duplicate Prevention
-- Stores posted URLs in `posted_urls.json`
-- Keeps last 50 URLs (prevents unbounded growth)
-- Skips articles if URL already posted
+| Module | Class / Function | Description |
+|--------|-----------------|-------------|
+| `fetcher.py` | `NewsFetcher.fetch_latest_ai_news()` | Returns list of article dicts from all RSS feeds |
+| `fetcher.py` | `NewsFetcher.get_random_article()` | Returns one random AI/Tech article |
+| `generator.py` | `ContentGenerator.generate_caption()` | Generates caption + 30 hashtags via Gemini |
+| `generator.py` | `ContentGenerator.generate_carousel_content()` | Returns `{caption, image_urls}` for full carousel |
+| `generator.py` | `ContentGenerator.generate_content()` | Returns `{caption, image_url}` for single-image post |
+| `poster.py` | `InstagramPoster.post_carousel_to_instagram()` | Posts carousel, falls back to single-image |
+| `poster.py` | `InstagramPoster.post_to_instagram()` | Posts a single image |
+| `poster.py` | `InstagramPoster.check_token_valid()` | Validates the access token |
+| `poster.py` | `InstagramPoster.refresh_access_token()` | Refreshes long-lived token |
+| `scheduler.py` | `InstagramScheduler.run()` | Starts the background scheduler |
 
 ---
 
-## License
+## 🚨 Troubleshooting
 
-MIT
+### `Missing or incomplete environment variables`
+→ Check that your `.env` file exists and all required keys are filled in. Values like `your_key_here` are detected as placeholders.
+
+### `Token validation failed`
+→ Your Instagram access token may have expired (tokens last ~60 days).  
+Run `python poster.py` to test and refresh.  
+Get a new token from [Meta API Explorer](https://developers.facebook.com/tools/explorer/).
+
+### `Cloudinary upload failed`
+→ Verify `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and `CLOUDINARY_API_SECRET` in `.env`. Check your Cloudinary dashboard for usage limits.
+
+### `No articles found`
+→ RSS feeds may be temporarily down. The agent retries across multiple sources (TechCrunch, MIT Tech Review, The Verge).
+
+### `All fetched articles were already posted`
+→ All recent articles have been posted. The agent skips duplicates. Wait for new articles to be published, or delete `posted_urls.json` to reset history.
+
+### `Carousel container failed`
+→ Instagram has strict requirements on image aspect ratios (1:1 for carousels). The agent automatically falls back to a single-image post.
+
+### Gemini API errors
+→ You may have hit the free tier rate limit (60 requests/min, 1,500/day). Wait a minute and retry, or upgrade your plan at [Google AI Studio](https://aistudio.google.com).
 
 ---
 
-## Support
+## 🔒 Security Notes
 
-For issues:
-1. Check `logs.txt` (local) or Railway logs (cloud)
-2. Verify all environment variables are set
-3. Ensure APIs are accessible (not rate-limited)
-4. Check that Instagram account is Creator/Business type
+> [!CAUTION]
+> **Never commit your `.env` file to version control.** It contains your private API keys and access tokens. The `.gitignore` already excludes it, but double-check before pushing.
+
+- Rotate your Instagram access token every 60 days (or use the built-in refresh)
+- Do not share your `FACEBOOK_APP_SECRET` or `CLOUDINARY_API_SECRET`
+- Use environment variables on deployment platforms instead of `.env` files
 
 ---
 
-## Next Steps
+## 🤝 Contributing
 
-- [ ] Get API keys and update `.env`
-- [ ] Test locally: `python main.py`
-- [ ] Verify logs: check `logs.txt`
-- [ ] Deploy to Railway
-- [ ] Add Railway environment variables
-- [ ] Monitor first scheduled post
-- [ ] Adjust `POST_TIME_MORNING` and `POST_TIME_EVENING` as needed
+Contributions are welcome! Here's how:
 
-Happy posting! 🚀📱
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/my-feature`
+3. Commit your changes: `git commit -m "Add my feature"`
+4. Push to the branch: `git push origin feature/my-feature`
+5. Open a Pull Request
+
+### Ideas for contributions
+- [ ] Support for video Reels generation
+- [ ] Multi-language caption support
+- [ ] Analytics tracking (likes, comments, reach)
+- [ ] Web dashboard for monitoring
+- [ ] Support for Twitter/X cross-posting
+
+---
+
+## 📄 License
+
+This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
+
+```
+MIT License — free to use, modify, and distribute with attribution.
+```
+
+---
+
+## 🙏 Acknowledgements
+
+- [Google Gemini](https://deepmind.google/technologies/gemini/) — AI caption & hashtag generation
+- [Pollinations.ai](https://pollinations.ai) — Free AI image generation
+- [Cloudinary](https://cloudinary.com) — Image hosting & CDN
+- [Meta Graph API](https://developers.facebook.com/docs/instagram-api/) — Instagram posting
+- [APScheduler](https://apscheduler.readthedocs.io/) — Python job scheduling
+- [Pillow](https://pillow.readthedocs.io/) — Image processing & design
+
+---
+
+<div align="center">
+
+Made with ❤️ for the AI & Tech community
+
+⭐ **Star this repo if it helped you!** ⭐
+
+</div>

@@ -8,6 +8,12 @@ import os
 import json
 import logging
 import sys
+
+# Fix Windows console encoding for Unicode symbols
+if sys.stdout.encoding and sys.stdout.encoding.lower() != 'utf-8':
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+if sys.stderr.encoding and sys.stderr.encoding.lower() != 'utf-8':
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -193,33 +199,34 @@ def run_agent():
         logger.info(f"  Source: {article['source']}")
         logger.info(f"  Summary: {article['summary'][:100]}...")
         
-        # Step 4: Generate Caption
-        logger.info("\n[4/6] Generating Instagram caption...")
+        # Step 4: Generate Caption + Carousel Images
+        logger.info("\n[4/6] Generating caption + carousel slides...")
         generator = ContentGenerator()
-        caption = generator.generate_caption(article)
+        content = generator.generate_carousel_content(article)
+        caption    = content["caption"]
+        image_urls = content["image_urls"]
         
         if not caption:
-            logger.error("✗ Failed to generate caption - exiting")
+            logger.error("\u2717 Failed to generate caption - exiting")
             log_to_file("FAILED", article['title'])
             return False
         
-        logger.info(f"✓ Caption generated ({len(caption)} chars)")
+        logger.info(f"\u2713 Caption generated ({len(caption)} chars)")
         logger.info(f"  Caption preview: {caption[:80]}...")
+        logger.info(f"\u2713 Carousel images: {len(image_urls)} slides")
         
-        # Step 5: Generate Image
-        logger.info("\n[5/6] Generating image URL...")
-        image_url = generator.generate_image_url(article['title'])
-        
-        if not image_url:
-            logger.error("✗ Failed to generate image - exiting")
+        # Step 5: Log Image Info
+        logger.info("\n[5/6] Image URLs ready...")
+        if not image_urls:
+            logger.error("\u2717 No images generated - exiting")
             log_to_file("FAILED", article['title'])
             return False
+        logger.info(f"\u2713 Cover image: {image_urls[0][:60]}...")
+        if len(image_urls) > 1:
+            logger.info(f"\u2713 Text slides: {len(image_urls) - 1} additional slides")
         
-        logger.info(f"✓ Image URL generated")
-        logger.info(f"  URL: {image_url[:60]}...")
-        
-        # Step 6: Post to Instagram
-        logger.info("\n[6/6] Posting to Instagram...")
+        # Step 6: Post Carousel to Instagram
+        logger.info("\n[6/6] Posting carousel to Instagram...")
         poster = InstagramPoster()
         
         # Verify token is valid before posting
@@ -228,7 +235,7 @@ def run_agent():
             log_to_file("FAILED", article['title'])
             return False
         
-        success = poster.post_to_instagram(image_url, caption)
+        success = poster.post_carousel_to_instagram(image_urls, caption)
         
         if success:
             logger.info("✓ Successfully posted to Instagram!")
