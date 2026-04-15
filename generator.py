@@ -15,24 +15,21 @@ load_dotenv()
 
 class ContentGenerator:
     CAPTION_PROMPT = (
-        "You are an Instagram content creator for an AI & Tech niche page "
-        "with 100k+ followers. Write an engaging Instagram caption for this "
-        "news article. Rules: Start with a powerful hook sentence (make people "
-        "stop scrolling). Use 3-5 short punchy sentences. Be conversational, "
-        "not corporate. End with a CTA. Do NOT include any hashtags — they "
-        "will be added separately. Keep total under 200 words."
+        "You are an Instagram content creator for a developer-focused AI niche page "
+        "with 100k+ followers. Write a high-value Instagram caption for this "
+        "software engineering news article. Rules: Start with a powerful hook "
+        "(mentioning coding agents, LLMs, or dev tools). Use 3-5 short punchy "
+        "sentences explained from a developer's perspective. Be conversational "
+        "and insightful. End with a CTA (e.g., 'Would you use this in your workflow?'). "
+        "Do NOT include any hashtags. Keep total under 200 words."
     )
 
     HASHTAG_PROMPT = (
-        "You are a viral Instagram growth expert specialising in AI & Tech. "
-        "Generate exactly 30 Instagram hashtags for the article below. "
-        "Rules: "
-        "(1) Mix high-volume tags (1M+ posts) with niche topic-specific tags (10k–500k posts). "
-        "(2) Include tags trending RIGHT NOW for this specific topic (not generic tech tags only). "
-        "(3) Cover all angles: technology name, use-case, industry impact, community tags, viral tags. "
-        "(4) Output ONLY the hashtags on a single line separated by spaces, starting with #. "
-        "(5) Do NOT include explanations, numbering, or line breaks between tags. "
-        "Example format: #AI #MachineLearning #GPT4 ..."
+        "You are a viral growth expert for developer communities on Instagram. "
+        "Generate exactly 30 hashtags for an article about AI in coding/SWE. "
+        "Include: #softwareengineering #coding #ai #llm #developer #python "
+        "#javascript #codingagents #automation #devtools #github #copilot "
+        "and other trending tags for this niche. Output ONLY the hashtags on one line."
     )
 
     def __init__(self):

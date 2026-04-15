@@ -13,11 +13,14 @@ from urllib.parse import urlparse
 class NewsFetcher:
     """Fetches and filters AI/Tech news from multiple RSS feed sources."""
     
-    # AI-related keywords for filtering
+    # AI & Coding related keywords for filtering
     AI_KEYWORDS = {
-        'ai', 'artificial intelligence', 'machine learning', 'gpt',
-        'llm', 'robot', 'neural', 'deep learning', 'algorithm',
-        'nlp', 'computer vision', 'transformer', 'automation'
+        'ai', 'artificial intelligence', 'machine learning', 'gpt', 'llm',
+        'claude', 'gemini', 'llama', 'mistral', 'openai', 'anthropic',
+        'coding agent', 'software engineering', 'developer tool',
+        'copilot', 'devin', 'programming', 'code generation',
+        'automation', 'deep learning', 'transformer', 'neural',
+        'nlp', 'agentic', 'swe-agent', 'devops', 'backend', 'frontend'
     }
     
     # RSS feed sources
