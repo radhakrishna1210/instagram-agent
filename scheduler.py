@@ -7,6 +7,8 @@ Schedules automatic posting at configured times using APScheduler
 import os
 import logging
 import time
+import uvicorn
+from fastapi import FastAPI
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -124,6 +126,13 @@ class InstagramScheduler:
     def run(self):
         """Start the scheduler and keep it running."""
         try:
+            # Create a tiny FastAPI app for Railway health checks
+            app = FastAPI()
+
+            @app.get("/")
+            async def health_check():
+                return {"status": "healthy", "service": "instagram-agent-scheduler"}
+
             # Schedule jobs
             self.schedule_jobs()
             
@@ -138,11 +147,11 @@ class InstagramScheduler:
             logger.info(f"  Evening: {next_times['evening'].strftime('%Y-%m-%d %H:%M:%S')}")
             logger.info(f"  Next run: {next_times['next'].strftime('%Y-%m-%d %H:%M:%S')}\n")
             
-            logger.info("[Scheduler] ✓ Ready. Press Ctrl+C to stop.")
+            logger.info("[Scheduler] ✓ Ready. Starting health check server...")
             
-            # Keep scheduler running
-            while True:
-                time.sleep(60)  # Check every 60 seconds
+            # Run web server on the main thread (Railway requires a port binding)
+            port = int(os.getenv("PORT", 8000))
+            uvicorn.run(app, host="0.0.0.0", port=port, log_level="warning")
         
         except KeyboardInterrupt:
             logger.info("\n[Scheduler] ⚠ Scheduler interrupted by user")
