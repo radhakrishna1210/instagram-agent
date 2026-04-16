@@ -4,6 +4,7 @@ import os
 import re
 import random
 import textwrap
+from pathlib import Path
 from urllib.parse import quote
 
 import requests
@@ -11,6 +12,61 @@ import google.generativeai as genai
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# ---------------------------------------------------------------------------
+# Font helpers
+# ---------------------------------------------------------------------------
+
+_FONTS_DIR = Path(__file__).parent / "fonts"
+
+_DEJAVU_URLS = {
+    "DejaVuSans-Bold.ttf": (
+        "https://github.com/dejavu-fonts/dejavu-fonts/raw/main/ttf/DejaVuSans-Bold.ttf"
+    ),
+    "DejaVuSans.ttf": (
+        "https://github.com/dejavu-fonts/dejavu-fonts/raw/main/ttf/DejaVuSans.ttf"
+    ),
+}
+
+
+def _ensure_fonts() -> tuple[Path | None, Path | None]:
+    """Return (bold_path, regular_path) for DejaVu fonts.
+
+    Checks local system paths first, then falls back to the bundled fonts/
+    directory (downloading the files on first use if needed).
+    """
+    system_pairs = [
+        ("C:/Windows/Fonts/arialbd.ttf",  "C:/Windows/Fonts/arial.ttf"),
+        ("C:/Windows/Fonts/calibrib.ttf", "C:/Windows/Fonts/calibri.ttf"),
+        ("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
+        ("/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf",
+         "/usr/share/fonts/dejavu/DejaVuSans.ttf"),
+    ]
+    for bold_p, reg_p in system_pairs:
+        if Path(bold_p).exists() and Path(reg_p).exists():
+            return Path(bold_p), Path(reg_p)
+
+    # Bundled / downloaded fonts
+    _FONTS_DIR.mkdir(exist_ok=True)
+    bold_dst = _FONTS_DIR / "DejaVuSans-Bold.ttf"
+    reg_dst  = _FONTS_DIR / "DejaVuSans.ttf"
+    for dst, name in [(bold_dst, "DejaVuSans-Bold.ttf"), (reg_dst, "DejaVuSans.ttf")]:
+        if not dst.exists():
+            url = _DEJAVU_URLS[name]
+            print(f"[Generator] Downloading font {name} from GitHub...")
+            try:
+                r = requests.get(url, timeout=30)
+                r.raise_for_status()
+                dst.write_bytes(r.content)
+                print(f"[Generator] ✓ Font saved to {dst}")
+            except Exception as e:
+                print(f"[Generator] ✗ Font download failed: {e}")
+                return None, None
+
+    if bold_dst.exists() and reg_dst.exists():
+        return bold_dst, reg_dst
+    return None, None
 
 
 class ContentGenerator:
@@ -200,23 +256,13 @@ class ContentGenerator:
         draw.rectangle([(0, h - 8), (w, h)], fill=(30, 144, 255))
 
         # Fonts
-        font_pairs = [
-            ("C:/Windows/Fonts/arialbd.ttf",  "C:/Windows/Fonts/arial.ttf"),
-            ("C:/Windows/Fonts/calibrib.ttf", "C:/Windows/Fonts/calibri.ttf"),
-            ("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-             "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
-        ]
-        bold_font = small_font = tag_font = None
-        for bold_path, reg_path in font_pairs:
-            try:
-                bold_font  = ImageFont.truetype(bold_path, 58)
-                small_font = ImageFont.truetype(reg_path,  30)
-                tag_font   = ImageFont.truetype(bold_path, 30)
-                break
-            except OSError:
-                continue
-        if bold_font is None:
-            bold_font = small_font = tag_font = ImageFont.load_default()
+        bold_path, reg_path = _ensure_fonts()
+        if bold_path:
+            bold_font  = ImageFont.truetype(str(bold_path), 58)
+            small_font = ImageFont.truetype(str(reg_path),  30)
+            tag_font   = ImageFont.truetype(str(bold_path), 30)
+        else:
+            bold_font = small_font = tag_font = ImageFont.load_default(size=30)
 
         # "AI & TECH" pill at top
         draw.rounded_rectangle([(40, 30), (200, 72)], radius=10, fill=(30, 144, 255))
@@ -276,22 +322,12 @@ class ContentGenerator:
 
             # Fonts
             font_size, small_size = 54, 28
-            font_pairs = [
-                ("C:/Windows/Fonts/arialbd.ttf",  "C:/Windows/Fonts/arial.ttf"),
-                ("C:/Windows/Fonts/calibrib.ttf", "C:/Windows/Fonts/calibri.ttf"),
-                ("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-                 "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
-            ]
-            bold_font = small_font = None
-            for bold_path, reg_path in font_pairs:
-                try:
-                    bold_font  = ImageFont.truetype(bold_path, font_size)
-                    small_font = ImageFont.truetype(reg_path,  small_size)
-                    break
-                except OSError:
-                    continue
-            if bold_font is None:
-                bold_font = small_font = ImageFont.load_default()
+            bold_path, reg_path = _ensure_fonts()
+            if bold_path:
+                bold_font  = ImageFont.truetype(str(bold_path), font_size)
+                small_font = ImageFont.truetype(str(reg_path),  small_size)
+            else:
+                bold_font = small_font = ImageFont.load_default(size=28)
 
             # Wrap headline — max 3 lines of ~26 chars
             title = article.get("title", "")
@@ -472,24 +508,14 @@ class ContentGenerator:
         # NOTE: no accent bars — clean, minimal look
 
         # ── 4. Fonts ──────────────────────────────────────────────────────
-        font_pairs = [
-            ("C:/Windows/Fonts/arialbd.ttf",  "C:/Windows/Fonts/arial.ttf"),
-            ("C:/Windows/Fonts/calibrib.ttf", "C:/Windows/Fonts/calibri.ttf"),
-            ("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-             "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
-        ]
-        bold_font = body_font = small_font = tag_font = None
-        for bold_path, reg_path in font_pairs:
-            try:
-                bold_font  = ImageFont.truetype(bold_path, 44)
-                body_font  = ImageFont.truetype(reg_path,  36)
-                small_font = ImageFont.truetype(reg_path,  24)
-                tag_font   = ImageFont.truetype(bold_path, 26)
-                break
-            except OSError:
-                continue
-        if bold_font is None:
-            bold_font = body_font = small_font = tag_font = ImageFont.load_default()
+        bold_path, reg_path = _ensure_fonts()
+        if bold_path:
+            bold_font  = ImageFont.truetype(str(bold_path), 44)
+            body_font  = ImageFont.truetype(str(reg_path),  36)
+            small_font = ImageFont.truetype(str(reg_path),  24)
+            tag_font   = ImageFont.truetype(str(bold_path), 26)
+        else:
+            bold_font = body_font = small_font = tag_font = ImageFont.load_default(size=24)
 
         # ── 5. "AI & TECH" pill — centred at top ────────────────────
         pill_text = "AI & TECH"

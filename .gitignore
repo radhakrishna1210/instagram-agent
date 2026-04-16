@@ -39,6 +39,9 @@ ENV/
 *~
 .DS_Store
 
+# Auto-downloaded fonts (populated at runtime)
+fonts/
+
 # Application-specific
 logs.txt
 posted_urls.json
