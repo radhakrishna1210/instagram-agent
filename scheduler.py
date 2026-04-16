@@ -138,6 +138,22 @@ class InstagramScheduler:
             async def health_check():
                 return {"status": "healthy", "service": "instagram-agent-scheduler"}
 
+            @app.get("/run-now")
+            async def run_now():
+                """Manually trigger a post immediately for testing."""
+                import threading
+                morning_key = os.getenv("GEMINI_API_KEY")
+                thread = threading.Thread(
+                    target=self.job_wrapper,
+                    args=["Manual Post", morning_key],
+                    daemon=True,
+                )
+                thread.start()
+                return {
+                    "status": "triggered",
+                    "message": "Post triggered — check Railway logs for progress.",
+                }
+
             # Schedule jobs
             self.schedule_jobs()
             
