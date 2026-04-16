@@ -62,6 +62,7 @@ Instagram AI Agent is a Python-based automation tool that runs a complete Instag
 | ☁️ **Cloud image hosting** | Cloudinary hosts all images for public Instagram-compatible URLs |
 | 🔄 **Duplicate prevention** | Tracks posted URLs in `posted_urls.json` — never reposts the same article |
 | ⏰ **Auto-scheduler** | APScheduler runs posts at configurable times (default: 9 AM & 6 PM) |
+| 🔑 **Dual API keys** | Use separate Gemini keys for morning/evening to double daily quota |
 | 🔁 **Token management** | Checks token validity and supports long-lived token refresh |
 | 🛡️ **Fallback safety** | Every step has graceful fallbacks — if carousel fails, posts single image |
 
@@ -183,8 +184,13 @@ Create a `.env` file in the project root with the following variables:
 ```env
 # ── Google Gemini AI ──────────────────────────────────────────────
 # Get your free API key at: https://aistudio.google.com/app/apikeys
-# Free tier: 60 requests/minute, 1500 requests/day
+# Free tier: 20 requests/day per key (gemini-2.5-flash)
 GEMINI_API_KEY=your_gemini_api_key_here
+
+# Optional: second Gemini key for evening posts (doubles daily quota)
+# Morning post uses GEMINI_API_KEY, Evening post uses GEMINI_API_KEY_2
+# If not set, evening post falls back to GEMINI_API_KEY
+GEMINI_API_KEY_2=your_second_gemini_api_key_here
 
 # ── Instagram Graph API ───────────────────────────────────────────
 # Requires Instagram Business or Creator account
@@ -409,8 +415,10 @@ Get a new token from [Meta API Explorer](https://developers.facebook.com/tools/e
 ### `Carousel container failed`
 → Instagram has strict requirements on image aspect ratios (1:1 for carousels). The agent automatically falls back to a single-image post.
 
-### Gemini API errors
-→ You may have hit the free tier rate limit (60 requests/min, 1,500/day). Wait a minute and retry, or upgrade your plan at [Google AI Studio](https://aistudio.google.com).
+### Gemini quota exceeded (429 error)
+→ The `gemini-2.5-flash` free tier allows only **20 requests/day per key**. Each post uses ~4 requests (caption + hashtags + image prompt + BG prompt).  
+**Fix:** Add a `GEMINI_API_KEY_2` in your `.env` (or Railway Variables) so morning and evening posts use separate keys, giving you 40 requests/day total.  
+Alternatively, upgrade to a paid Gemini plan at [Google AI Studio](https://aistudio.google.com).
 
 ---
 

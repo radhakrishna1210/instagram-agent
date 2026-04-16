@@ -145,9 +145,9 @@ def log_to_file(status: str, article_title: str):
         logger.error(f"Failed to write to logs.txt: {e}")
 
 
-def run_agent():
+def run_agent(gemini_api_key: str = None):
     """Execute the full Instagram automation pipeline.
-    
+
     Pipeline:
     1. Fetch latest AI/Tech news
     2. Check if article was already posted (duplicate prevention)
@@ -157,7 +157,10 @@ def run_agent():
     6. Post to Instagram
     7. Save URL to prevent duplicates
     8. Log results
-    
+
+    Args:
+        gemini_api_key: Optional Gemini API key override. Falls back to GEMINI_API_KEY env var.
+
     Returns:
         True if post was successful, False otherwise
     """
@@ -201,7 +204,7 @@ def run_agent():
         
         # Step 4: Generate Caption + Carousel Images
         logger.info("\n[4/6] Generating caption + carousel slides...")
-        generator = ContentGenerator()
+        generator = ContentGenerator(api_key=gemini_api_key)
         content = generator.generate_carousel_content(article)
         caption    = content["caption"]
         image_urls = content["image_urls"]
