@@ -49,21 +49,22 @@ class InstagramScheduler:
         self.scheduler = BackgroundScheduler()
         logger.info(f"[Scheduler] Initialized with times: {self.morning_time}, {self.evening_time}")
     
-    def job_wrapper(self, job_name: str):
+    def job_wrapper(self, job_name: str, gemini_api_key: str = None):
         """Wrapper function to run the agent and handle errors.
-        
+
         Args:
             job_name: Name of the job (Morning Post or Evening Post)
+            gemini_api_key: Gemini API key to use for this job
         """
         try:
             logger.info(f"\n{'='*70}")
             logger.info(f"[{job_name}] Starting scheduled post...")
             logger.info(f"{'='*70}")
-            
+
             # Import run_agent here to avoid circular imports
             from main import run_agent
-            
-            success = run_agent()
+
+            success = run_agent(gemini_api_key=gemini_api_key)
             
             if success:
                 logger.info(f"[{job_name}] ✓ Post completed successfully")
@@ -77,27 +78,31 @@ class InstagramScheduler:
     
     def schedule_jobs(self):
         """Schedule both morning and evening posting jobs."""
+        morning_key = os.getenv("GEMINI_API_KEY")
+        evening_key = os.getenv("GEMINI_API_KEY_2") or morning_key
+
         # Morning post (9:00 AM by default)
         self.scheduler.add_job(
             self.job_wrapper,
             CronTrigger(hour=self.morning_hour, minute=self.morning_minute),
-            args=["Morning Post"],
+            args=["Morning Post", morning_key],
             id='morning_post',
             name='Morning Instagram Post',
             misfire_grace_time=600  # Allow 10 minutes grace for missed jobs
         )
         logger.info(f"[Scheduler] Scheduled morning post at {self.morning_time} daily")
-        
+
         # Evening post (6:00 PM by default)
         self.scheduler.add_job(
             self.job_wrapper,
             CronTrigger(hour=self.evening_hour, minute=self.evening_minute),
-            args=["Evening Post"],
+            args=["Evening Post", evening_key],
             id='evening_post',
             name='Evening Instagram Post',
             misfire_grace_time=600
         )
-        logger.info(f"[Scheduler] Scheduled evening post at {self.evening_time} daily")
+        key_info = "GEMINI_API_KEY_2" if os.getenv("GEMINI_API_KEY_2") else "GEMINI_API_KEY (fallback)"
+        logger.info(f"[Scheduler] Scheduled evening post at {self.evening_time} daily (key: {key_info})")
     
     def get_next_run_time(self) -> dict:
         """Get the next scheduled run times.

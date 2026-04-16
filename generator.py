@@ -33,8 +33,8 @@ class ContentGenerator:
         "and other trending tags for this niche. Output ONLY the hashtags on one line."
     )
 
-    def __init__(self):
-        self.gemini_api_key = os.getenv("GEMINI_API_KEY")
+    def __init__(self, api_key: str = None):
+        self.gemini_api_key = api_key or os.getenv("GEMINI_API_KEY")
         if self.gemini_api_key:
             genai.configure(api_key=self.gemini_api_key)
 
