@@ -352,6 +352,51 @@ class InstagramPoster:
             print(f"[Poster] ✗ Error creating carousel item: {e}")
             return None
 
+    def _wait_for_media_ready(
+        self,
+        media_id: str,
+        max_wait_seconds: int = 90,
+        poll_interval: int = 5,
+    ) -> bool:
+        """Poll the Graph API until a media container reaches FINISHED status.
+
+        Instagram processes uploaded images asynchronously. Attempting to publish
+        before processing completes causes a 400 "Media ID is not available" error.
+
+        Args:
+            media_id:         The container ID to poll.
+            max_wait_seconds: Abort after this many seconds (default 90).
+            poll_interval:    Seconds between status checks (default 5).
+
+        Returns:
+            True if the container is FINISHED, False on timeout or error.
+        """
+        url = f"{self.GRAPH_API_BASE}/{media_id}"
+        params = {
+            "fields": "status_code,status",
+            "access_token": self.access_token,
+        }
+        deadline = time.time() + max_wait_seconds
+        while time.time() < deadline:
+            try:
+                resp = requests.get(url, params=params, timeout=15)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    status = data.get("status_code", data.get("status", ""))
+                    print(f"[Poster] Media {media_id} status: {status}")
+                    if status == "FINISHED":
+                        return True
+                    if status in ("ERROR", "EXPIRED"):
+                        print(f"[Poster] ✗ Media {media_id} entered terminal error state: {status}")
+                        return False
+                else:
+                    print(f"[Poster] ⚠ Status check HTTP {resp.status_code} for {media_id}")
+            except Exception as e:
+                print(f"[Poster] ⚠ Status poll error: {e}")
+            time.sleep(poll_interval)
+        print(f"[Poster] ✗ Timed out waiting for media {media_id} to be ready")
+        return False
+
     def _create_carousel_container(
         self, children_ids: List[str], caption: str
     ) -> Optional[str]:
@@ -437,11 +482,43 @@ class InstagramPoster:
             print("[Poster] ✗ Not enough carousel items — falling back to single photo")
             return self.post_to_instagram(image_urls[0], caption)
 
+        # Step 1b: Wait for ALL child items to finish processing.
+        # Instagram processes images asynchronously. Publishing before each child
+        # reaches FINISHED status causes: 400 "Media ID is not available".
+        print(f"[Poster] Waiting for {len(children_ids)} carousel items to finish processing...")
+        all_ready = True
+        for cid in children_ids:
+            if not self._wait_for_media_ready(cid):
+                print(f"[Poster] ⚠ Item {cid} did not reach FINISHED — skipping it")
+                all_ready = False
+
+        if not all_ready:
+            # Re-filter to only confirmed-ready IDs
+            ready_ids = []
+            for cid in children_ids:
+                url = f"{self.GRAPH_API_BASE}/{cid}"
+                try:
+                    r = requests.get(url, params={"fields": "status_code", "access_token": self.access_token}, timeout=10)
+                    if r.status_code == 200 and r.json().get("status_code") == "FINISHED":
+                        ready_ids.append(cid)
+                except Exception:
+                    pass
+            if len(ready_ids) < 2:
+                print("[Poster] ✗ Too few items ready — falling back to single photo")
+                return self.post_to_instagram(image_urls[0], caption)
+            children_ids = ready_ids
+
         # Step 2: Create parent carousel container
         carousel_id = self._create_carousel_container(children_ids, caption)
         if not carousel_id:
             print("[Poster] ✗ Carousel container failed — falling back to single photo")
             return self.post_to_instagram(image_urls[0], caption)
+
+        # Step 2b: Wait for the carousel container itself to be ready
+        print(f"[Poster] Waiting for carousel container {carousel_id} to be ready...")
+        if not self._wait_for_media_ready(carousel_id):
+            print("[Poster] ✗ Carousel container not ready in time — aborting")
+            return False
 
         # Step 3: Publish
         result = self._publish_media_container(carousel_id)

@@ -21,10 +21,10 @@ _FONTS_DIR = Path(__file__).parent / "fonts"
 
 _DEJAVU_URLS = {
     "DejaVuSans-Bold.ttf": (
-        "https://github.com/dejavu-fonts/dejavu-fonts/raw/main/ttf/DejaVuSans-Bold.ttf"
+        "https://github.com/dejavu-fonts/dejavu-fonts/raw/master/ttf/DejaVuSans-Bold.ttf"
     ),
     "DejaVuSans.ttf": (
-        "https://github.com/dejavu-fonts/dejavu-fonts/raw/main/ttf/DejaVuSans.ttf"
+        "https://github.com/dejavu-fonts/dejavu-fonts/raw/master/ttf/DejaVuSans.ttf"
     ),
 }
 
@@ -320,34 +320,40 @@ class ContentGenerator:
             img = Image.alpha_composite(img, overlay).convert("RGB")
             draw = ImageDraw.Draw(img)
 
-            # Fonts
-            font_size, small_size = 54, 28
+            # Fonts — large sizes for Amazon-style impactful headlines
+            font_size  = 88   # big bold headline
+            small_size = 34
             bold_path, reg_path = _ensure_fonts()
             if bold_path:
                 bold_font  = ImageFont.truetype(str(bold_path), font_size)
                 small_font = ImageFont.truetype(str(reg_path),  small_size)
             else:
-                bold_font = small_font = ImageFont.load_default(size=28)
+                bold_font  = ImageFont.load_default(size=font_size)
+                small_font = ImageFont.load_default(size=small_size)
 
-            # Wrap headline — max 3 lines of ~26 chars
+            # Wrap headline — tighter width so each line is chunky
             title = article.get("title", "")
-            lines = textwrap.wrap(title, width=26)[:3]
-            line_h = font_size + 16
+            lines = textwrap.wrap(title, width=18)[:4]
+            line_h = font_size + 14
             text_block_h = len(lines) * line_h
-            y = h - text_block_h - 80
+            y = h - text_block_h - 110
 
-            # Blue accent bar on left edge
-            draw.rectangle([(46, y), (53, y + text_block_h - 8)], fill=(30, 144, 255))
+            # Thick blue accent bar on left edge (Amazon style)
+            bar_padding = 10
+            draw.rectangle(
+                [(46, y - bar_padding), (58, y + text_block_h + bar_padding)],
+                fill=(30, 144, 255),
+            )
 
-            # Headline with drop shadow
+            # Headline with drop shadow — starts right of accent bar
             for line in lines:
-                draw.text((68, y + 3), line, fill=(0, 0, 0),       font=bold_font)  # shadow
-                draw.text((66, y),     line, fill=(255, 255, 255),  font=bold_font)
+                draw.text((78, y + 4), line, fill=(0, 0, 0),       font=bold_font)  # shadow
+                draw.text((76, y),     line, fill=(255, 255, 255),  font=bold_font)
                 y += line_h
 
             # Source label at very bottom
             source = article.get("source", "").replace("_", " ").title()
-            draw.text((50, h - 50), f"AI & Tech  •  {source}", fill=(160, 200, 255), font=small_font)
+            draw.text((50, h - 55), f"AI & Tech  •  {source}", fill=(160, 200, 255), font=small_font)
 
             buf = io.BytesIO()
             img.save(buf, format="JPEG", quality=92)
@@ -507,15 +513,18 @@ class ContentGenerator:
 
         # NOTE: no accent bars — clean, minimal look
 
-        # ── 4. Fonts ──────────────────────────────────────────────────────
+        # ── 4. Fonts — large sizes for Amazon-style slides ───────────────
         bold_path, reg_path = _ensure_fonts()
         if bold_path:
-            bold_font  = ImageFont.truetype(str(bold_path), 44)
-            body_font  = ImageFont.truetype(str(reg_path),  36)
-            small_font = ImageFont.truetype(str(reg_path),  24)
-            tag_font   = ImageFont.truetype(str(bold_path), 26)
+            bold_font  = ImageFont.truetype(str(bold_path), 68)   # slide heading
+            body_font  = ImageFont.truetype(str(reg_path),  52)   # body text
+            small_font = ImageFont.truetype(str(reg_path),  32)   # labels
+            tag_font   = ImageFont.truetype(str(bold_path), 34)   # pill
         else:
-            bold_font = body_font = small_font = tag_font = ImageFont.load_default(size=24)
+            bold_font  = ImageFont.load_default(size=68)
+            body_font  = ImageFont.load_default(size=52)
+            small_font = ImageFont.load_default(size=32)
+            tag_font   = ImageFont.load_default(size=34)
 
         # ── 5. "AI & TECH" pill — centred at top ────────────────────
         pill_text = "AI & TECH"
@@ -541,16 +550,16 @@ class ContentGenerator:
         ]
         points = raw_points[:6]  # cap at 6 bullets
 
-        y        = 140         # start below pill + divider
+        y        = 150         # start below pill + divider
         margin   = 60          # left margin
-        right_m  = 60          # right margin (leave symmetric space)
-        bullet_r = 6           # bullet circle radius
-        text_x   = margin + 26 # text starts right of bullet
-        # width in chars: usable px / avg char width at font ~36px
-        # 1080 - 60 (left) - 60 (right) - 26 (bullet) = ~934px / ~19px per char ≈ 49
-        wrap_w   = 44
-        line_h   = 56
-        gap      = 22          # space between bullet points
+        right_m  = 60          # right margin
+        bullet_r = 8           # bullet circle radius (larger dots)
+        text_x   = margin + 30 # text starts right of bullet
+        # width in chars: usable px / avg char width at font ~52px
+        # 1080 - 60 - 60 - 30 = 930px / ~27px per char ≈ 34
+        wrap_w   = 24
+        line_h   = 72
+        gap      = 28          # space between bullet points
 
         for point in points:
             # Small white bullet dot
