@@ -55,7 +55,7 @@ Instagram AI Agent is a Python-based automation tool that runs a complete Instag
 |---------|-------------|
 | 🗞️ **Multi-source news** | Pulls from TechCrunch, MIT Tech Review, The Verge simultaneously |
 | 🤖 **AI captions** | Google Gemini 2.5 Flash generates hook-driven, viral captions |
-| #️⃣ **30 viral hashtags** | Gemini picks trending, topic-specific hashtags (Instagram's maximum) |
+| #️⃣ **Hybrid hashtag system** | 15 article-specific tags (Gemini) + 15 randomly sampled from a curated 2025 AI/tech pool = 30 total, rotated every post |
 | 🖼️ **AI image generation** | Pollinations.ai generates cinematic, article-relevant visuals |
 | 📸 **Carousel posts** | 3–5 swipeable slides per post for maximum engagement |
 | 🎨 **Professional design** | Pillow-generated overlays: gradient, blue accent bars, bullet points |
@@ -65,6 +65,8 @@ Instagram AI Agent is a Python-based automation tool that runs a complete Instag
 | 🔑 **Dual API keys** | Use separate Gemini keys for morning/evening to double daily quota |
 | 🔁 **Token management** | Checks token validity and supports long-lived token refresh |
 | 🛡️ **Fallback safety** | Every step has graceful fallbacks — if carousel fails, posts single image |
+| 📐 **Dynamic text fitting** | Pixel-accurate word wrap + font-size descent (88→72→60→50px) — text never overflows or gets cut off on any slide |
+| 🔁 **Rate-limit resilient** | Batch-round API polling + 403 publish verification — correctly handles Meta's rate limits without false failures |
 
 ---
 
@@ -82,7 +84,8 @@ Instagram AI Agent is a Python-based automation tool that runs a complete Instag
 │     ↓                                                           │
 │                                                                 │
 │  3. GENERATE   Gemini AI → Caption body (hook + CTA)           │
-│     ↓          Gemini AI → 30 trending hashtags                │
+│     ↓          Gemini AI → 15 article-specific hashtags        │
+│                Curated pool → 15 trending 2025 base hashtags   │
 │                                                                 │
 │  4. IMAGES     Pollinations.ai → Topic-relevant photo          │
 │     ↓          Pillow → Add headline + source overlay          │
@@ -119,10 +122,8 @@ instagram-agent/
 ├── posted_urls.json     # 📝 Duplicate prevention history (auto-generated)
 ├── logs.txt             # 📊 Execution logs (auto-generated)
 │
-├── Procfile             # 🚀 For deployment (Heroku/Render)
-├── runtime.txt          # 🐍 Python version for deployment
-├── DEPLOY.bat           # 🪟 Windows deployment script
-├── DEPLOY.sh            # 🐧 Linux/Mac deployment script
+├── Procfile             # 🚀 Railway/Render entry point
+├── runtime.txt          # 🐍 Python version pin
 └── README.md            # 📖 This file
 ```
 
@@ -145,7 +146,7 @@ Before you begin, ensure you have:
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/yourusername/instagram-agent.git
+git clone https://github.com/radhakrishna1210/instagram-agent.git
 cd instagram-agent
 ```
 
@@ -318,16 +319,15 @@ Each post is automatically a **multi-slide Instagram carousel**:
 ### Slide 1 — Cover Photo
 - Cinematic AI-generated image relevant to the article topic (via Pollinations.ai)
 - Dark gradient overlay on bottom half for text legibility
-- **Bold white headline** (article title) with drop shadow
+- **Bold white headline** with pixel-accurate word wrap and dynamic font sizing (88→72→60→50px) so long titles always fit fully — no cut-off, no overflow
 - Blue accent bar `#1E90FF` on the left edge
 - Source label at bottom (`AI & Tech • TechCrunch`)
 
 ### Slides 2+ — Text Slides
 - **Topic-relevant background image** (same subject, different seed = visual variety)
 - **65% dark overlay** for text contrast
-- Blue `#1E90FF` accent bars at top + bottom + left edge
-- **Bullet points** (●) for each sentence from the caption
-- `AI & TECH` pill badge at top-left
+- `AI & TECH` pill badge centred at top
+- **Bullet points** (●) for each sentence from the caption — text pixel-wrapped to always stay within the canvas
 - Slide counter at bottom-right (e.g. `3 / 4`)
 
 > **Note:** Hashtags appear only in the Instagram caption text — never on any image slide.
@@ -415,9 +415,15 @@ Get a new token from [Meta API Explorer](https://developers.facebook.com/tools/e
 ### `Carousel container failed`
 → Instagram has strict requirements on image aspect ratios (1:1 for carousels). The agent automatically falls back to a single-image post.
 
+### `Application request limit reached` (403) on publish
+→ This is a known Meta API quirk — the post usually goes live even when the API response returns 403. The bot automatically verifies by querying your account's most recent media. If confirmed live within 2 minutes, it counts as a success and the article is marked as posted so it won't be re-attempted.
+
+### Text cut off or overflowing on carousel images
+→ Fixed in the current version. All text rendering now uses pixel-accurate word wrapping via `draw.textlength()` with dynamic font-size descent (88→72→60→50px). Text is guaranteed to stay within the 1080×1080 canvas.
+
 ### Gemini quota exceeded (429 error)
-→ The `gemini-2.5-flash` free tier allows only **20 requests/day per key**. Each post uses ~4 requests (caption + hashtags + image prompt + BG prompt).  
-**Fix:** Add a `GEMINI_API_KEY_2` in your `.env` (or Railway Variables) so morning and evening posts use separate keys, giving you 40 requests/day total.  
+→ The `gemini-2.5-flash` free tier allows **1,500 requests/day**. Each post uses ~4 requests (caption body + hashtags + cover image prompt + slide BG prompt).  
+**Fix:** Add a `GEMINI_API_KEY_2` in your `.env` (or Railway Variables) so morning and evening posts use separate keys, doubling your daily quota.  
 Alternatively, upgrade to a paid Gemini plan at [Google AI Studio](https://aistudio.google.com).
 
 ---

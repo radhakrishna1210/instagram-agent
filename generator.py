@@ -3,7 +3,6 @@ import io
 import os
 import re
 import random
-import textwrap
 from pathlib import Path
 from urllib.parse import quote
 
@@ -81,12 +80,36 @@ class ContentGenerator:
         "Do NOT include any hashtags. Keep total under 220 words."
     )
 
+    # Curated pool of proven high-reach AI/Tech Instagram hashtags (2025).
+    # 15 are randomly sampled each post so the set rotates without going stale.
+    _BASE_HASHTAGS: list[str] = [
+        # Broad reach — AI/ML core
+        "#artificialintelligence", "#machinelearning", "#deeplearning",
+        "#generativeai", "#aitools", "#llm", "#airesearch",
+        # 2025 trending AI topics
+        "#aiagents", "#agenticai", "#vibecoding", "#aicoding",
+        "#promptengineering", "#multimodalai", "#aiautomation",
+        # Dev / builder community (highly engaged)
+        "#buildinpublic", "#softwareengineering", "#developer",
+        "#100daysofcode", "#devlife", "#codelife", "#openSource",
+        # Startup / innovation
+        "#techstartup", "#techinnovation", "#futureofai",
+        "#techindustry", "#disruptivetech",
+    ]
+
     HASHTAG_PROMPT = (
-        "You are a viral growth expert for developer communities on Instagram. "
-        "Generate exactly 30 hashtags for an article about AI in coding/SWE. "
-        "Include: #softwareengineering #coding #ai #llm #developer #python "
-        "#javascript #codingagents #automation #devtools #github #copilot "
-        "and other trending tags for this niche. Output ONLY the hashtags on one line."
+        "You are a viral Instagram growth expert for AI and developer audiences in 2025. "
+        "Generate exactly 15 ARTICLE-SPECIFIC hashtags for this post. "
+        "Rules: "
+        "(1) Read the title and summary carefully — understand the exact topic. "
+        "(2) Name the EXACT tools, companies, products, people, or technologies in this article "
+        "(e.g. for an Nvidia H100 article: #nvidia #h100 #cuda #gpucomputing — NOT generic #ai). "
+        "(3) Add 2-3 currently trending sub-niche tags that fit the article "
+        "(e.g. #aiagents #agenticai #vibecoding #llmops #ragpipeline #finetuning etc.). "
+        "(4) Add 2-3 community discovery tags the TARGET audience actively follows "
+        "(e.g. #mlengineers #airesearcher #pythondeveloper #cloudarchitect). "
+        "(5) Every article MUST produce a DIFFERENT, highly specific set — never reuse generic tags. "
+        "Output ONLY the 15 hashtags on one line, space-separated, each starting with #."
     )
 
     def __init__(self, api_key: str = None):
@@ -116,20 +139,26 @@ class ContentGenerator:
             caption_resp = model.generate_content(caption_prompt)
             caption_body = (caption_resp.text or "").strip()
 
-            # ── Hashtags (30 viral, topic-specific) ────────────────────────
+            # ── Hashtags: 15 article-specific (Gemini) + 15 curated base ──
             hashtag_prompt = (
                 f"{self.HASHTAG_PROMPT}\n\n"
                 f"Article title: {title}\n"
                 f"Article summary: {summary[:400]}\n"
-                "Return ONLY the 30 hashtags on one line."
+                "Return ONLY the 15 hashtags on one line."
             )
             hashtag_resp = model.generate_content(hashtag_prompt)
             raw_tags = (hashtag_resp.text or "").strip()
 
-            # Sanitise: keep only tokens that start with #
-            tags = [t for t in raw_tags.split() if t.startswith("#")]
-            # Enforce Instagram's 30-hashtag limit
-            tags = tags[:30]
+            # Specific tags from Gemini (article-level)
+            specific = [t for t in raw_tags.split() if t.startswith("#")][:15]
+
+            # Random sample from curated pool; drop any that Gemini already picked
+            specific_lower = {t.lower() for t in specific}
+            pool = [t for t in self._BASE_HASHTAGS if t.lower() not in specific_lower]
+            base = random.sample(pool, min(15, len(pool)))
+
+            # Article-specific tags first so they appear most prominently
+            tags = (specific + base)[:30]
             hashtag_line = " ".join(tags)
 
             if caption_body and hashtag_line:
@@ -150,11 +179,11 @@ class ContentGenerator:
                 "What's your take? Is this a game changer or just hype? "
                 "Let's discuss in the comments! 👇"
             )
-            fallback_tags = (
-                "#softwareengineering #coding #ai #llm #developer #python "
-                "#javascript #codingagents #automation #devtools #github #copilot "
-                "#tech #programming #innovation #future #developerlife #engineer"
-            )
+            fallback_tags = " ".join(random.sample(self._BASE_HASHTAGS, 20) + [
+                "#coding", "#ai", "#tech", "#developer", "#python",
+                "#automation", "#devtools", "#github", "#innovation",
+                "#future", "#engineer",
+            ])
             return f"{fallback_body}\n\n{fallback_tags}"
 
     # ------------------------------------------------------------------
@@ -268,10 +297,24 @@ class ContentGenerator:
         draw.rounded_rectangle([(40, 30), (200, 72)], radius=10, fill=(30, 144, 255))
         draw.text((55, 38), "AI & TECH", fill=(255, 255, 255), font=tag_font)
 
-        # Headline centered in the middle
+        # Headline centered in the middle — pixel-accurate wrap, dynamic font size
         title = article.get("title", "")
-        lines = textwrap.wrap(title, width=24)[:4]
-        line_h = 72
+        text_max_w = w - 80  # 40px margin each side
+        lines = []
+        for fsize in (58, 48, 38):
+            if bold_path:
+                bold_font = ImageFont.truetype(str(bold_path), fsize)
+            else:
+                bold_font = ImageFont.load_default(size=fsize)
+            lines = [
+                ln
+                for raw in title.split("\n")
+                for ln in ContentGenerator._wrap_text_px(draw, raw, bold_font, text_max_w)
+            ]
+            if len(lines) <= 5:
+                break
+        lines = lines[:5]
+        line_h = fsize + 14
         total_h = len(lines) * line_h
         y = (h - total_h) // 2 - 40
 
@@ -320,20 +363,29 @@ class ContentGenerator:
             img = Image.alpha_composite(img, overlay).convert("RGB")
             draw = ImageDraw.Draw(img)
 
-            # Fonts — large sizes for Amazon-style impactful headlines
-            font_size  = 88   # big bold headline
+            # Fonts
             small_size = 34
             bold_path, reg_path = _ensure_fonts()
-            if bold_path:
-                bold_font  = ImageFont.truetype(str(bold_path), font_size)
-                small_font = ImageFont.truetype(str(reg_path),  small_size)
-            else:
-                bold_font  = ImageFont.load_default(size=font_size)
-                small_font = ImageFont.load_default(size=small_size)
+            small_font = (
+                ImageFont.truetype(str(reg_path), small_size)
+                if reg_path else ImageFont.load_default(size=small_size)
+            )
 
-            # Wrap headline — tighter width so each line is chunky
+            # Pixel-accurate wrap with dynamic font sizing: shrink until ≤5 lines
             title = article.get("title", "")
-            lines = textwrap.wrap(title, width=18)[:4]
+            text_max_w = w - 76 - 50  # left x=76, right margin 50px → 954px
+            bold_font = None
+            lines = []
+            font_size = 88
+            for font_size in (88, 72, 60, 50):
+                bold_font = (
+                    ImageFont.truetype(str(bold_path), font_size)
+                    if bold_path else ImageFont.load_default(size=font_size)
+                )
+                lines = self._wrap_text_px(draw, title, bold_font, text_max_w)
+                if len(lines) <= 5:
+                    break
+            lines = lines[:5]
             line_h = font_size + 14
             text_block_h = len(lines) * line_h
             y = h - text_block_h - 110
@@ -451,6 +503,26 @@ class ContentGenerator:
 
         return slides
 
+    @staticmethod
+    def _wrap_text_px(draw, text: str, font, max_px: int) -> list[str]:
+        """Word-wrap text so no rendered line exceeds max_px pixels wide."""
+        words = text.split()
+        if not words:
+            return []
+        lines, current, cur_w = [], [], 0
+        sp_w = draw.textlength(" ", font=font)
+        for word in words:
+            ww = draw.textlength(word, font=font)
+            if current and cur_w + sp_w + ww > max_px:
+                lines.append(" ".join(current))
+                current, cur_w = [word], ww
+            else:
+                cur_w = (cur_w + sp_w + ww) if current else ww
+                current.append(word)
+        if current:
+            lines.append(" ".join(current))
+        return lines
+
     def _make_text_slide(
         self,
         text: str,
@@ -555,9 +627,7 @@ class ContentGenerator:
         right_m  = 60          # right margin
         bullet_r = 8           # bullet circle radius (larger dots)
         text_x   = margin + 30 # text starts right of bullet
-        # width in chars: usable px / avg char width at font ~52px
-        # 1080 - 60 - 60 - 30 = 930px / ~27px per char ≈ 34
-        wrap_w   = 24
+        text_max_w = w - text_x - right_m  # 930px available for text
         line_h   = 72
         gap      = 28          # space between bullet points
 
@@ -568,9 +638,9 @@ class ContentGenerator:
                 fill=(255, 255, 255),
             )
 
-            # Wrapped text — full width of canvas
-            wrapped = textwrap.wrap(point, width=wrap_w)
-            for wline in wrapped[:3]:
+            # Pixel-accurate wrap — no right-edge overflow
+            wrapped = self._wrap_text_px(draw, point, body_font, text_max_w)
+            for wline in wrapped[:4]:
                 draw.text((text_x, y), wline, fill=TXT_MAIN, font=body_font)
                 y += line_h
 
