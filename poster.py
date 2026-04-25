@@ -245,19 +245,31 @@ class InstagramPoster:
             }
             
             print(f"[Poster] Publishing media container...")
-            response = requests.post(url, data=payload, timeout=15)
-            
+            response = requests.post(url, data=payload, timeout=30)
+
             if response.status_code == 200:
                 data = response.json()
                 media_id = data.get('id')
                 print(f"[Poster] ✓ Media published successfully: {media_id}")
                 return {'media_id': media_id, 'creation_id': creation_id}
-            else:
-                error_data = response.json()
-                error_msg = error_data.get('error', {}).get('message', 'Unknown error')
-                print(f"[Poster] ✗ Failed to publish media: {error_msg}")
-                print(f"[Poster] Status code: {response.status_code}")
-                return None
+
+            error_data = response.json()
+            error_msg = error_data.get('error', {}).get('message', 'Unknown error')
+            print(f"[Poster] ✗ Failed to publish media: {error_msg}")
+            print(f"[Poster] Status code: {response.status_code}")
+
+            # 403 rate-limit: the publish request often succeeds on Instagram's side
+            # even though Meta returns a rate-limit error on the response.  Verify.
+            if response.status_code == 403:
+                print("[Poster] ⚠ Rate limit on publish — verifying if post went live...")
+                time.sleep(8)
+                verified_id = self._get_most_recent_post_id()
+                if verified_id:
+                    print(f"[Poster] ✓ Post confirmed live despite 403: {verified_id}")
+                    return {'media_id': verified_id, 'creation_id': creation_id}
+                print("[Poster] Could not confirm post — treating as failed")
+
+            return None
                 
         except requests.exceptions.Timeout:
             print("[Poster] ✗ Request timeout publishing media")
@@ -352,50 +364,89 @@ class InstagramPoster:
             print(f"[Poster] ✗ Error creating carousel item: {e}")
             return None
 
-    def _wait_for_media_ready(
+    def _wait_for_all_ready(
         self,
-        media_id: str,
-        max_wait_seconds: int = 90,
-        poll_interval: int = 5,
-    ) -> bool:
-        """Poll the Graph API until a media container reaches FINISHED status.
+        media_ids: List[str],
+        max_wait_seconds: int = 150,
+        poll_interval: int = 10,
+    ) -> List[str]:
+        """Poll all media IDs in batch rounds until each reaches FINISHED.
 
-        Instagram processes uploaded images asynchronously. Attempting to publish
-        before processing completes causes a 400 "Media ID is not available" error.
-
-        Args:
-            media_id:         The container ID to poll.
-            max_wait_seconds: Abort after this many seconds (default 90).
-            poll_interval:    Seconds between status checks (default 5).
+        One round = one API call per still-pending ID, then a single sleep.
+        This avoids the N×M API calls of the old sequential approach and
+        dramatically reduces the chance of hitting Meta's rate limit.
 
         Returns:
-            True if the container is FINISHED, False on timeout or error.
+            List of IDs that reached FINISHED (may be shorter than input if
+            some items errored or timed out).
         """
-        url = f"{self.GRAPH_API_BASE}/{media_id}"
-        params = {
-            "fields": "status_code,status",
-            "access_token": self.access_token,
-        }
+        pending = list(media_ids)
+        finished: List[str] = []
         deadline = time.time() + max_wait_seconds
-        while time.time() < deadline:
-            try:
-                resp = requests.get(url, params=params, timeout=15)
-                if resp.status_code == 200:
-                    data = resp.json()
-                    status = data.get("status_code", data.get("status", ""))
-                    print(f"[Poster] Media {media_id} status: {status}")
-                    if status == "FINISHED":
-                        return True
-                    if status in ("ERROR", "EXPIRED"):
-                        print(f"[Poster] ✗ Media {media_id} entered terminal error state: {status}")
-                        return False
-                else:
-                    print(f"[Poster] ⚠ Status check HTTP {resp.status_code} for {media_id}")
-            except Exception as e:
-                print(f"[Poster] ⚠ Status poll error: {e}")
-            time.sleep(poll_interval)
-        print(f"[Poster] ✗ Timed out waiting for media {media_id} to be ready")
-        return False
+
+        while pending and time.time() < deadline:
+            still_pending: List[str] = []
+            for mid in pending:
+                url = f"{self.GRAPH_API_BASE}/{mid}"
+                try:
+                    resp = requests.get(
+                        url,
+                        params={"fields": "status_code", "access_token": self.access_token},
+                        timeout=15,
+                    )
+                    if resp.status_code == 200:
+                        status = resp.json().get("status_code", "UNKNOWN")
+                        print(f"[Poster] Item {mid}: {status}")
+                        if status == "FINISHED":
+                            finished.append(mid)
+                        elif status in ("ERROR", "EXPIRED"):
+                            print(f"[Poster] ✗ Item {mid} failed permanently: {status}")
+                        else:
+                            still_pending.append(mid)
+                    elif resp.status_code in (403, 429):
+                        print("[Poster] ⚠ Rate limited during status poll — backing off 30s")
+                        still_pending.append(mid)
+                        time.sleep(30)
+                        break  # restart round after backoff
+                    else:
+                        still_pending.append(mid)
+                except Exception as e:
+                    print(f"[Poster] ⚠ Poll error for {mid}: {e}")
+                    still_pending.append(mid)
+
+            pending = still_pending
+            if pending:
+                time.sleep(poll_interval)
+
+        if pending:
+            print(f"[Poster] ⚠ {len(pending)} item(s) did not reach FINISHED in time")
+        return finished
+
+    def _get_most_recent_post_id(self) -> Optional[str]:
+        """Return the most recently published media ID if it was posted within the
+        last 2 minutes, or None.  Used to verify a publish that returned 403."""
+        try:
+            from datetime import datetime, timezone
+            url = f"{self.GRAPH_API_BASE}/{self.account_id}/media"
+            resp = requests.get(
+                url,
+                params={"fields": "id,timestamp", "limit": 1, "access_token": self.access_token},
+                timeout=15,
+            )
+            if resp.status_code == 200:
+                items = resp.json().get("data", [])
+                if items:
+                    mid = items[0]["id"]
+                    ts_str = items[0].get("timestamp", "")
+                    if ts_str:
+                        ts = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+                        age = (datetime.now(timezone.utc) - ts).total_seconds()
+                        if age < 120:
+                            print(f"[Poster] Recent post confirmed: {mid} ({int(age)}s ago)")
+                            return mid
+        except Exception as e:
+            print(f"[Poster] ⚠ Could not verify recent post: {e}")
+        return None
 
     def _create_carousel_container(
         self, children_ids: List[str], caption: str
@@ -466,7 +517,7 @@ class InstagramPoster:
         image_urls = image_urls[:10]
         print(f"[Poster] Building carousel with {len(image_urls)} slides...")
 
-        # Step 1: Create carousel item containers
+        # Step 1: Create carousel item containers (2s gap between each to stay under rate limit)
         children_ids = []
         for i, img_url in enumerate(image_urls):
             print(f"[Poster] Creating item {i + 1}/{len(image_urls)}...")
@@ -475,38 +526,20 @@ class InstagramPoster:
                 children_ids.append(cid)
             else:
                 print(f"[Poster] ⚠ Slide {i + 1} skipped (upload/container error)")
-            # Brief pause to respect API rate limits
-            time.sleep(0.5)
+            time.sleep(2)
 
         if len(children_ids) < 2:
             print("[Poster] ✗ Not enough carousel items — falling back to single photo")
             return self.post_to_instagram(image_urls[0], caption)
 
-        # Step 1b: Wait for ALL child items to finish processing.
-        # Instagram processes images asynchronously. Publishing before each child
-        # reaches FINISHED status causes: 400 "Media ID is not available".
-        print(f"[Poster] Waiting for {len(children_ids)} carousel items to finish processing...")
-        all_ready = True
-        for cid in children_ids:
-            if not self._wait_for_media_ready(cid):
-                print(f"[Poster] ⚠ Item {cid} did not reach FINISHED — skipping it")
-                all_ready = False
-
-        if not all_ready:
-            # Re-filter to only confirmed-ready IDs
-            ready_ids = []
-            for cid in children_ids:
-                url = f"{self.GRAPH_API_BASE}/{cid}"
-                try:
-                    r = requests.get(url, params={"fields": "status_code", "access_token": self.access_token}, timeout=10)
-                    if r.status_code == 200 and r.json().get("status_code") == "FINISHED":
-                        ready_ids.append(cid)
-                except Exception:
-                    pass
-            if len(ready_ids) < 2:
-                print("[Poster] ✗ Too few items ready — falling back to single photo")
-                return self.post_to_instagram(image_urls[0], caption)
-            children_ids = ready_ids
+        # Step 1b: Batch-wait for all child items — one round of checks per interval.
+        # This replaces sequential per-item polling which burned through API rate limits.
+        print(f"[Poster] Waiting for {len(children_ids)} carousel items to be ready...")
+        ready_ids = self._wait_for_all_ready(children_ids)
+        if len(ready_ids) < 2:
+            print("[Poster] ✗ Too few items ready — falling back to single photo")
+            return self.post_to_instagram(image_urls[0], caption)
+        children_ids = ready_ids
 
         # Step 2: Create parent carousel container
         carousel_id = self._create_carousel_container(children_ids, caption)
@@ -516,7 +549,8 @@ class InstagramPoster:
 
         # Step 2b: Wait for the carousel container itself to be ready
         print(f"[Poster] Waiting for carousel container {carousel_id} to be ready...")
-        if not self._wait_for_media_ready(carousel_id):
+        ready = self._wait_for_all_ready([carousel_id])
+        if not ready:
             print("[Poster] ✗ Carousel container not ready in time — aborting")
             return False
 
