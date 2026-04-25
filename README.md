@@ -1,4 +1,4 @@
-# 🤖 Instagram AI Agent
+# 🤖 Instagram AI Agent.
 
 <div align="center">
 
